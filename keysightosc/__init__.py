@@ -1,1 +1,1 @@
-from .oscilloscope import list_connected_devices
+from .oscilloscope import list_connected_devices, Oscilloscope
