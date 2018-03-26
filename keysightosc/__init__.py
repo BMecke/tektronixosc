@@ -1,1 +1,1 @@
-"""Top-level package for Keysight Oscilloscope."""
+from .oscilloscope import list_connected_devices
