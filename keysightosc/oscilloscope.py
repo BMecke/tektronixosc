@@ -28,3 +28,9 @@ class Oscilloscope:
                 self._instrument = self._resource_manager.open_resource(connected_resources[0])
         else:
             self._instrument = self._resource_manager.open_resource(resource)
+
+    def _err_check(self):
+        """Check if instrument for error."""
+        answer = self._instrument.query(":SYSTem:ERRor?")
+        if not answer.startswith('+0,'):
+            raise RuntimeError('Instrument error: {}.'.format(answer.split('"')[1]))
