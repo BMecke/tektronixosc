@@ -65,3 +65,8 @@ class Oscilloscope:
     def y_adc_zero(self):
         """Zero value of the analog to digital converter."""
         return int(self._query(':WAVeform:YREFerence?'))
+
+    @property
+    def y_offset(self):
+        """Offset of the measured voltaga."""
+        return float(self._query(':WAVeform:YORigin?'))
