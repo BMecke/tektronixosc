@@ -70,3 +70,8 @@ class Oscilloscope:
     def y_offset(self):
         """Offset of the measured voltaga."""
         return float(self._query(':WAVeform:YORigin?'))
+
+    @property
+    def y_increment(self):
+        """Increment of the measured voltage."""
+        return float(self._query(':WAVeform:YINCrement?'))
