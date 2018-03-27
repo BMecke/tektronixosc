@@ -46,6 +46,12 @@ class Oscilloscope:
         self._err_check()
         return answer
 
+    def _query_binary(self, message):
+        """Send a query for binary values."""
+        answer = self._instrument.query_binary_values(message, datatype='s')
+        self._err_check()
+        return answer
+
     def reset(self):
         """Reset the instrument to standard settings."""
         self._write('*RST')
