@@ -34,3 +34,8 @@ class Oscilloscope:
         answer = self._instrument.query(":SYSTem:ERRor?")
         if not answer.startswith('+0,'):
             raise RuntimeError('Instrument error: {}.'.format(answer.split('"')[1]))
+
+    def _write(self, message):
+        """Write a message to the visa interface and check for errors."""
+        self._instrument.write(message)
+        self._err_check()
