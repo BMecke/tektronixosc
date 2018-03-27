@@ -75,3 +75,10 @@ class Oscilloscope:
     def y_increment(self):
         """Increment of the measured voltage."""
         return float(self._query(':WAVeform:YINCrement?'))
+
+    def get_signal(self):
+        """Get the signal displayed on screen."""
+        adc_zero = self.y_adc_zero
+        offset = self.y_offset
+        increment = self.y_increment
+        return [(value - adc_zero) * increment + offset for value in self.get_signal_raw()]
