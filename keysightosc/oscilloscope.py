@@ -45,3 +45,7 @@ class Oscilloscope:
         answer = self._instrument.query(message)
         self._err_check()
         return answer
+
+    def reset(self):
+        """Reset the instrument to standard settings."""
+        self._write('*RST')
