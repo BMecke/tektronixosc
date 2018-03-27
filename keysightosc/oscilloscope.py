@@ -60,3 +60,8 @@ class Oscilloscope:
         """Get the raw data displayed on screen."""
         data = self._query_binary(':WAVeform:DATA?')
         return list(data[0])
+
+    @property
+    def y_adc_zero(self):
+        """Zero value of the analog to digital converter."""
+        return int(self._query(':WAVeform:YREFerence?'))
