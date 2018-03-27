@@ -39,3 +39,9 @@ class Oscilloscope:
         """Write a message to the visa interface and check for errors."""
         self._instrument.write(message)
         self._err_check()
+
+    def _query(self, message):
+        """Send a query to the visa interface and check for errors."""
+        answer = self._instrument.query(message)
+        self._err_check()
+        return answer
