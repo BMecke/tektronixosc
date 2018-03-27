@@ -55,3 +55,8 @@ class Oscilloscope:
     def reset(self):
         """Reset the instrument to standard settings."""
         self._write('*RST')
+
+    def get_signal_raw(self):
+        """Get the raw data displayed on screen."""
+        data = self._query_binary(':WAVeform:DATA?')
+        return list(data[0])
