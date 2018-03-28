@@ -68,6 +68,10 @@ class Oscilloscope:
         """Stop acquisition."""
         self._write(':STOP')
 
+    def trigger(self):
+        """Manually trigger the instrument."""
+        self._write('*TRG')
+
     def get_signal_raw(self):
         """Get the raw data displayed on screen."""
         data = self._query_binary(':WAVeform:DATA?')
