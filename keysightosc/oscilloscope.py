@@ -76,8 +76,6 @@ class Oscilloscope:
         """Increment of the measured voltage."""
         return float(self._query(':WAVeform:YINCrement?'))
 
-    def get_signal(self):
-        """Get the signal displayed on screen."""
     @property
     def waveform_source(self):
         """Selected channel or function."""
@@ -96,6 +94,14 @@ class Oscilloscope:
         else:
             self._write(':WAVeform:SOURce {}'.format(source))
 
+    def get_signal(self, source=None):
+        """Get the signal displayed on screen.
+
+        Args:
+            source: Source of the signal (channel or function).
+        """
+        if source:
+            self.waveform_source = source
         adc_zero = self.y_adc_zero
         offset = self.y_offset
         increment = self.y_increment
