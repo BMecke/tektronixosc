@@ -104,6 +104,19 @@ class Oscilloscope:
         else:
             self._write(':WAVeform:SOURce {}'.format(source))
 
+    @property
+    def white_image_bg(self):
+        """Image background color."""
+        return self._query(':HARDcopy:INKSaver?') == '1\n'
+
+    @white_image_bg.setter
+    def white_image_bg(self, value):
+        """Set image background color."""
+        if value:
+            self._write(':HARDcopy:INKSaver 1')
+        else:
+            self._write(':HARDcopy:INKSaver 0')
+
     def get_signal(self, source=None):
         """Get the signal displayed on screen.
 
