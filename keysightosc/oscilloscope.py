@@ -114,7 +114,8 @@ class Oscilloscope:
             self.waveform_source = source
         adc_zero = self.y_adc_zero
         increment = self.y_increment
-        return [(value - adc_zero) * increment for value in self.get_signal_raw()]
+        offset = self.y_offset
+        return [(value - adc_zero) * increment + offset for value in self.get_signal_raw()]
 
     def screenshot(self, filename):
         """Save the oscilloscope screen data as image.
