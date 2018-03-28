@@ -62,6 +62,16 @@ class Oscilloscope:
         return list(data[0])
 
     @property
+    def x_offset(self):
+        """Offset of the time vector."""
+        return float(self._query(':WAVeform:XORigin?'))
+
+    @property
+    def x_increment(self):
+        """Increment of the time vector."""
+        return float(self._query(':WAVeform:XINCrement?'))
+
+    @property
     def y_adc_zero(self):
         """Zero value of the analog to digital converter."""
         return int(self._query(':WAVeform:YREFerence?'))
