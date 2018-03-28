@@ -78,6 +78,24 @@ class Oscilloscope:
 
     def get_signal(self):
         """Get the signal displayed on screen."""
+    @property
+    def waveform_source(self):
+        """Selected channel or function."""
+        return self._query(':WAVeform:SOURce?').strip()
+
+    @waveform_source.setter
+    def waveform_source(self, source):
+        """Select channel or function.
+
+        Args:
+            source: Either an integer specifying the channel or a string according to the
+                instrument interface documentation.
+        """
+        if source is 1 or source is 2:
+            self._write(':WAVeform:SOURce CHANnel{}'.format(str(source)))
+        else:
+            self._write(':WAVeform:SOURce {}'.format(source))
+
         adc_zero = self.y_adc_zero
         offset = self.y_offset
         increment = self.y_increment
