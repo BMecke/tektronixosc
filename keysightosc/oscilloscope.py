@@ -103,6 +103,5 @@ class Oscilloscope:
         if source:
             self.waveform_source = source
         adc_zero = self.y_adc_zero
-        offset = self.y_offset
         increment = self.y_increment
-        return [(value - adc_zero) * increment + offset for value in self.get_signal_raw()]
+        return [(value - adc_zero) * increment for value in self.get_signal_raw()]
