@@ -64,6 +64,10 @@ class Oscilloscope:
         """Arm for single shot acquisition."""
         self._write(':SINGle')
 
+    def stop(self):
+        """Stop acquisition."""
+        self._write(':STOP')
+
     def get_signal_raw(self):
         """Get the raw data displayed on screen."""
         data = self._query_binary(':WAVeform:DATA?')
