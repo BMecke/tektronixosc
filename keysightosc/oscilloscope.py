@@ -78,13 +78,23 @@ class Oscilloscope:
         return list(data[0])
 
     @property
-    def range(self):
+    def x_offset(self):
+        """Offset of the time vector."""
+        return float(self._query(':WAVeform:XORigin?'))
+
+    @property
+    def x_increment(self):
+        """Increment of the time vector."""
+        return float(self._query(':WAVeform:XINCrement?'))
+
+    @property
+    def y_range(self):
         """Range of each channel in volts."""
         return float(self._query(':CHANnel1:RANGe?')), float(self._query(':CHANnel2:RANGe?'))
 
-    @range.setter
-    def range(self, ranges):
-        """Set range for each channel.
+    @y_range.setter
+    def y_range(self, ranges):
+        """Set voltage range for each channel.
 
         Args:
             ranges: Ranges in volts for each channel if iterable, range for both channels if not.
@@ -96,16 +106,6 @@ class Oscilloscope:
 
             self._write(':CHANnel1:RANGe {}V'.format(str(ranges)))
             self._write(':CHANnel2:RANGe {}V'.format(str(ranges)))
-
-    @property
-    def x_offset(self):
-        """Offset of the time vector."""
-        return float(self._query(':WAVeform:XORigin?'))
-
-    @property
-    def x_increment(self):
-        """Increment of the time vector."""
-        return float(self._query(':WAVeform:XINCrement?'))
 
     @property
     def y_adc_zero(self):
