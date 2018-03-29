@@ -78,6 +78,20 @@ class Oscilloscope:
         return list(data[0])
 
     @property
+    def x_range(self):
+        """Horizontal range."""
+        return float(self._query(':TIMebase:RANGe?'))
+
+    @x_range.setter
+    def x_range(self, range_):
+        """Set horizontal range.
+
+        Args:
+            range_: Horizontal range in seconds.
+        """
+        self._write(':TIMebase:RANGe {}'.format(str(range_)))
+
+    @property
     def x_offset(self):
         """Offset of the time vector."""
         return float(self._query(':WAVeform:XORigin?'))
