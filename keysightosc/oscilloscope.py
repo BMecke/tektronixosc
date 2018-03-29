@@ -78,6 +78,26 @@ class Oscilloscope:
         return list(data[0])
 
     @property
+    def attenuation(self):
+        """Probe attenuation for each channel."""
+        return float(self._query(':CHANnel1:PROBe?')), float(self._query(':CHANnel2:PROBe?'))
+
+    @attenuation.setter
+    def attenuation(self, att):
+        """Set probe attenuation range for each channel.
+
+        Args:
+            att: Attenuation for each channel if iterable, Attenuation for both channels if not.
+        """
+        if hasattr(att, '__iter__'):
+            self._write(':CHANnel1:PROBe {}'.format(str(att[0])))
+            self._write(':CHANnel2:PROBe {}'.format(str(att[1])))
+        else:
+
+            self._write(':CHANnel1:PROBe {}'.format(str(att)))
+            self._write(':CHANnel2:PROBe {}'.format(str(att)))
+
+    @property
     def x_range(self):
         """Horizontal range."""
         return float(self._query(':TIMebase:RANGe?'))
