@@ -53,8 +53,11 @@ class Oscilloscope:
         return answer
 
     def reset(self):
-        """Reset the instrument to standard settings."""
+        """Reset the instrument to standard settings. Note: Scope standard setting is 10:1 for
+        probe attenuation. Because this seems unintuitive, in addition to the reset, the probe
+        attenuation is set to 1:1."""
         self._write('*RST')
+        self.attenuation = 1
 
     def run(self):
         """Start data acquisition."""
