@@ -145,6 +145,20 @@ class Oscilloscope:
             self._write(':CHANnel2:RANGe {}V'.format(str(ranges)))
 
     @property
+    def y_range_per_interval(self):
+        """Range per interval of each channel in volts."""
+        return self.y_range[0]/8, self.y_range[1]/8
+
+    @y_range_per_interval.setter
+    def y_range_per_interval(self, ranges):
+        """Set voltage range per interval for each channel.
+
+        Args:
+            ranges: Ranges per interval in volts for each channel if iterable, range for both channels if not.
+        """
+        self.y_range = ranges*8
+
+    @property
     def y_adc_zero(self):
         """Zero value of the analog to digital converter."""
         return int(self._query(':WAVeform:YREFerence?'))
