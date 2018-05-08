@@ -218,7 +218,11 @@ class Oscilloscope:
         return [(value - adc_zero) * increment + offset for value in self.get_signal_raw()]
 
     def get_time_vector(self, source=None):
-        """Get the time vector for the signal displayed on screen."""
+        """Get the time vector for the signal displayed on screen.
+
+        Args:
+            source: Source of the signal (channel or function).
+        """
         if source:
             self.waveform_source = source
         n_samples = len(self.get_signal_raw())
