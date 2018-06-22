@@ -28,6 +28,8 @@ class Oscilloscope:
                 self._instrument = self._resource_manager.open_resource(connected_resources[0])
         else:
             self._instrument = self._resource_manager.open_resource(resource)
+        # Increase timeout to 10 seconds for transfer of long signals.
+        self.visa_timeout = 10
 
     def _err_check(self):
         """Check if instrument for error."""
