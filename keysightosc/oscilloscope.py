@@ -52,6 +52,20 @@ class Oscilloscope:
         self._err_check()
         return answer
 
+    @property
+    def visa_timeout(self):
+        """Visa interface timeout in seconds."""
+        return self._instrument.timeout / 1000
+
+    @visa_timeout.setter
+    def visa_timeout(self, timeout):
+        """Set visa interface timeout.
+
+        Args:
+            timeout: Interface timeout in seconds.
+        """
+        self._instrument.timeout = timeout * 1000
+
     def reset(self):
         """Reset the instrument to standard settings. Note: Scope standard setting is 10:1 for
         probe attenuation. Because this seems unintuitive, in addition to the reset, the probe
