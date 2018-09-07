@@ -55,6 +55,20 @@ class Oscilloscope:
         return answer
 
     @property
+    def visa_query_delay(self):
+        """Visa interface query_delay in seconds."""
+        return self._instrument.query_delay
+
+    @visa_query_delay.setter
+    def visa_query_delay(self, query_delay):
+        """Set visa interface query_delay.
+
+        Args:
+            query_delay: Interface query_delay in seconds.
+        """
+        self._instrument.query_delay = query_delay
+
+    @property
     def visa_timeout(self):
         """Visa interface timeout in seconds."""
         return self._instrument.timeout / 1000
