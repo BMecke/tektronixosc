@@ -28,6 +28,9 @@ class Oscilloscope:
                 self._instrument = self._resource_manager.open_resource(connected_resources[0])
         else:
             self._instrument = self._resource_manager.open_resource(resource)
+        # Set query_delay to 0.2 seconds to transmit data securely.
+        # Important for Linux systems, because zero delay causes false data.
+        self.visa_query_delay = 0.2
         # Increase timeout to 10 seconds for transfer of long signals.
         self.visa_timeout = 10
 
