@@ -1,4 +1,5 @@
 import visa as vi
+import pyvisa
 
 
 def list_connected_devices():
@@ -15,7 +16,7 @@ class Oscilloscope:
         """Class constructor. Open the connection to the instrument using the VISA interface.
 
         Args:
-            resource (str): Resource name of the instrument. If not specified, first device
+            resource (str): Resource name of the instrument. If not specified, first connected device
             returned by visa.ResourceManager's list_resources method is used.
         """
 
@@ -25,7 +26,18 @@ class Oscilloscope:
             if len(connected_resources) == 0:
                 raise RuntimeError('No device connected.')
             else:
-                self._instrument = self._resource_manager.open_resource(connected_resources[0])
+                res_num = 0
+                while True:
+                    try:
+                        self._instrument = self._resource_manager.open_resource(connected_resources[res_num])
+                        break
+                    except pyvisa.errors.VisaIOError:
+                        res_num += 1
+                        pass
+                    except IndexError:
+                        print("no visa device connected")
+                        raise
+
         else:
             self._instrument = self._resource_manager.open_resource(resource)
         # Set query_delay to 0.2 seconds to transmit data securely.
