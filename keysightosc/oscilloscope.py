@@ -35,8 +35,7 @@ class Oscilloscope:
                         res_num += 1
                         pass
                     except IndexError:
-                        print("no visa device connected")
-                        raise
+                        raise RuntimeError("no visa device connected")
 
         else:
             self._instrument = self._resource_manager.open_resource(resource)
