@@ -236,6 +236,20 @@ class Oscilloscope:
             self._write(':WAVeform:SOURce {}'.format(source))
 
     @property
+    def waveform_points_mode(self):
+        """Selected record mode."""
+        return self._query(':WAVeform:POINts:MODE?')
+
+    @waveform_points_mode.setter
+    def waveform_points_mode(self, mode):
+        """Select record mode.
+
+        Args:
+            mode: A string specifying the mode ('NORM', 'MAX' or 'RAW').
+        """
+        self._write(':WAVeform:POINts:MODE {}'.format(mode))
+
+    @property
     def white_image_bg(self):
         """Image background color."""
         return self._query(':HARDcopy:INKSaver?') == '1\n'
