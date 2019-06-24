@@ -250,6 +250,23 @@ class Oscilloscope:
         self._write(':WAVeform:POINts:MODE {}'.format(mode))
 
     @property
+    def waveform_points(self):
+        """Number of points to be transferred in the selected record mode."""
+        return self._query(':WAVeform:POINts?')
+
+    @waveform_points.setter
+    def waveform_points(self, num):
+        """Select number of points to be transferred in the selected record mode.
+        If mode is 'MAX' the number of points will be set for the 'RAW' mode.
+
+        Args:
+            num: The number of points to be transferred.
+        """
+        if (self.waveform_points_mode == 'RAW\n') or (self.waveform_points_mode == 'MAX\n'):
+            self.stop()
+        self._write(':WAVeform:POINts {}'.format(num))
+
+    @property
     def white_image_bg(self):
         """Image background color."""
         return self._query(':HARDcopy:INKSaver?') == '1\n'
