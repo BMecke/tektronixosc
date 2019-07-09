@@ -267,6 +267,20 @@ class Oscilloscope:
         self._write(':WAVeform:POINts {}'.format(num))
 
     @property
+    def fft_type(self):
+        """Selected FFT vertical units."""
+        return self._query(':FFT:VTYPe?')
+
+    @fft_type.setter
+    def fft_type(self, type_fft):
+        """Select FFT vertical units.
+
+        Args:
+            type_fft: current FFT vertical units (DEC or VRMS)
+        """
+        self._write(':FFT:VTYPe {}'.format(type_fft))
+
+    @property
     def white_image_bg(self):
         """Image background color."""
         return self._query(':HARDcopy:INKSaver?') == '1\n'
