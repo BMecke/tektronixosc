@@ -281,6 +281,20 @@ class Oscilloscope:
         self._write(':FFT:VTYPe {}'.format(type_fft))
 
     @property
+    def fft_source(self):
+        """Selected FFT source."""
+        return self._query(':FFT:SOURce1?').strip()
+
+    @fft_source.setter
+    def fft_source(self, source):
+        """Select FFT source.
+
+        Args:
+            source: channel source for the FFT
+        """
+        self._write(':FFT:SOURce1 CHAN{}'.format(source))
+
+    @property
     def white_image_bg(self):
         """Image background color."""
         return self._query(':HARDcopy:INKSaver?') == '1\n'
