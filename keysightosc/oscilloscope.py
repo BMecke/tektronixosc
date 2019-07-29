@@ -276,7 +276,7 @@ class Oscilloscope:
         """Select FFT vertical units.
 
         Args:
-            type_fft: current FFT vertical units (DEC or VRMS)
+            type_fft: current FFT vertical units ('DEC' or 'VRMS')
         """
         self._write(':FFT:VTYPe {}'.format(type_fft))
 
