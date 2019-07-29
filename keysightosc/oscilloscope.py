@@ -269,7 +269,7 @@ class Oscilloscope:
     @property
     def fft_type(self):
         """Selected FFT vertical units."""
-        return self._query(':FFT:VTYPe?')
+        return self._query(':FFT:VTYPe?').strip()
 
     @fft_type.setter
     def fft_type(self, type_fft):
