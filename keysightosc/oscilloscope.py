@@ -295,6 +295,20 @@ class Oscilloscope:
         self._write(':FFT:SOURce1 CHAN{}'.format(source))
 
     @property
+    def fft_window(self):
+        """Selected FFT window."""
+        return self._query(':FFT:WINDow?').strip()
+
+    @fft_window.setter
+    def fft_window(self, window):
+        """Select FFT window.
+
+        Args:
+            window: window for the FFT ('RECT', 'HANN', 'FLAT' or 'BHAR')
+        """
+        self._write(':FFT:WINDow {}'.format(window))
+
+    @property
     def white_image_bg(self):
         """Image background color."""
         return self._query(':HARDcopy:INKSaver?') == '1\n'
