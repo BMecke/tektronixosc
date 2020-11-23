@@ -13,11 +13,13 @@ class Oscilloscope:
     """Interface for a Keysight digital storage oscilloscope."""
 
     def __init__(self, resource=None):
-        """Class constructor. Open the connection to the instrument using the VISA interface.
+        """Class constructor. Open the connection to the instrument using the
+        VISA interface.
 
         Args:
-            resource (str): Resource name of the instrument. If not specified, first connected device
-            returned by visa.ResourceManager's list_resources method is used.
+            resource (str): Resource name of the instrument. If not specified,
+                            first connected device returned by visa.
+                            ResourceManager's list_resources method is used.
         """
 
         self._resource_manager = vi.ResourceManager()
@@ -44,6 +46,8 @@ class Oscilloscope:
         self.visa_query_delay = 0.2
         # Increase timeout to 10 seconds for transfer of long signals.
         self.visa_timeout = 10
+
+        self.channels = [Channel(self, 1), Channel(self, 2)]
 
     def _err_check(self):
         """Check if instrument for error."""
@@ -97,9 +101,12 @@ class Oscilloscope:
         self._instrument.timeout = timeout * 1000
 
     def reset(self):
-        """Reset the instrument to standard settings. Note: Scope standard setting is 10:1 for
-        probe attenuation. Because this seems unintuitive, in addition to the reset, the probe
-        attenuation is set to 1:1."""
+        """Reset the instrument to standard settings.
+
+        Note: Scope standard setting is 10:1 for probe attenuation. Because
+              this seems unintuitive, in addition to the reset, the probe
+              attenuation is set to 1:1.
+        """
         self._write('*RST')
         self.attenuation = 1
 
@@ -123,26 +130,6 @@ class Oscilloscope:
         """Get the raw data displayed on screen."""
         data = self._query_binary(':WAVeform:DATA?')
         return list(data[0])
-
-    @property
-    def attenuation(self):
-        """Probe attenuation for each channel."""
-        return float(self._query(':CHANnel1:PROBe?')), float(self._query(':CHANnel2:PROBe?'))
-
-    @attenuation.setter
-    def attenuation(self, att):
-        """Set probe attenuation range for each channel.
-
-        Args:
-            att: Attenuation for each channel if iterable, Attenuation for both channels if not.
-        """
-        if hasattr(att, '__iter__'):
-            self._write(':CHANnel1:PROBe {}'.format(str(att[0])))
-            self._write(':CHANnel2:PROBe {}'.format(str(att[1])))
-        else:
-
-            self._write(':CHANnel1:PROBe {}'.format(str(att)))
-            self._write(':CHANnel2:PROBe {}'.format(str(att)))
 
     @property
     def x_range(self):
@@ -169,40 +156,6 @@ class Oscilloscope:
         return float(self._query(':WAVeform:XINCrement?'))
 
     @property
-    def y_range(self):
-        """Range of each channel in volts."""
-        return float(self._query(':CHANnel1:RANGe?')), float(self._query(':CHANnel2:RANGe?'))
-
-    @y_range.setter
-    def y_range(self, ranges):
-        """Set voltage range for each channel.
-
-        Args:
-            ranges: Ranges in volts for each channel if iterable, range for both channels if not.
-        """
-        if hasattr(ranges, '__iter__'):
-            self._write(':CHANnel1:RANGe {}V'.format(str(ranges[0])))
-            self._write(':CHANnel2:RANGe {}V'.format(str(ranges[1])))
-        else:
-
-            self._write(':CHANnel1:RANGe {}V'.format(str(ranges)))
-            self._write(':CHANnel2:RANGe {}V'.format(str(ranges)))
-
-    @property
-    def y_range_per_interval(self):
-        """Range per interval of each channel in volts."""
-        return self.y_range[0]/8, self.y_range[1]/8
-
-    @y_range_per_interval.setter
-    def y_range_per_interval(self, ranges):
-        """Set voltage range per interval for each channel.
-
-        Args:
-            ranges: Ranges per interval in volts for each channel if iterable, range for both channels if not.
-        """
-        self.y_range = ranges*8
-
-    @property
     def y_adc_zero(self):
         """Zero value of the analog to digital converter."""
         return int(self._query(':WAVeform:YREFerence?'))
@@ -224,16 +177,13 @@ class Oscilloscope:
 
     @waveform_source.setter
     def waveform_source(self, source):
-        """Select channel or function.
+        """Select the source for the wave form data.
 
         Args:
-            source: Either an integer specifying the channel or a string according to the
-                instrument interface documentation.
+            source: Source for the waveform data (CHAN<n>, FUNC, MATH, FFT,
+                    WMEM<r>, ABUS, EXT).
         """
-        if source is 1 or source is 2:
-            self._write(':WAVeform:SOURce CHANnel{}'.format(str(source)))
-        else:
-            self._write(':WAVeform:SOURce {}'.format(source))
+        self._write(':WAVeform:SOURce {}'.format(source))
 
     @property
     def waveform_points_mode(self):
@@ -256,8 +206,9 @@ class Oscilloscope:
 
     @waveform_points.setter
     def waveform_points(self, num):
-        """Select number of points to be transferred in the selected record mode.
-        If mode is 'MAX' the number of points will be set for the 'RAW' mode.
+        """Select number of points to be transferred in the selected record
+        mode. If mode is 'MAX' the number of points will be set for the
+        'RAW' mode.
 
         Args:
             num: The number of points to be transferred.
@@ -276,7 +227,7 @@ class Oscilloscope:
         """Select FFT vertical units.
 
         Args:
-            type_fft: current FFT vertical units ('DEC' or 'VRMS')
+            type_fft: current FFT vertical units ('DEC' or 'VRMS').
         """
         self._write(':FFT:VTYPe {}'.format(type_fft))
 
@@ -290,7 +241,7 @@ class Oscilloscope:
         """Select FFT source.
 
         Args:
-            source: channel source for the FFT
+            source: channel source for the FFT.
         """
         self._write(':FFT:SOURce1 CHAN{}'.format(source))
 
@@ -304,7 +255,7 @@ class Oscilloscope:
         """Select FFT window.
 
         Args:
-            window: window for the FFT ('RECT', 'HANN', 'FLAT' or 'BHAR')
+            window: window for the FFT ('RECT', 'HANN', 'FLAT' or 'BHAR').
         """
         self._write(':FFT:WINDow {}'.format(window))
 
@@ -358,3 +309,83 @@ class Oscilloscope:
             filename += '.png'
         with open(filename, 'wb') as file:
             file.write(image_data[0])
+
+
+class Channel:
+    """Channel class for the Oscilloscope."""
+    def __init__(self, osc, number):
+        self.number = number
+        self.osc = osc
+
+    def _write(self, message):
+        """Write a message to the visa interface and check for errors."""
+        self.osc._write(message)
+
+    def _query(self, message):
+        """Send a query to the visa interface and check for errors."""
+        value = self.osc._query(message)
+        return value
+
+    @property
+    def y_range(self):
+        """Range of the channel in volts."""
+        return float(self._query(':CHANnel{}:RANGe?'.format(self.number)))
+
+    @y_range.setter
+    def y_range(self, range_):
+        """Set voltage range for each channel.
+
+        Args:
+            range_: Range in volts.
+        """
+        self._write(':CHANnel{}:RANGe {}V'.format(self.number, range_))
+
+    @property
+    def y_range_per_interval(self):
+        """Range per interval in volts."""
+        return self.y_range/8
+
+    @y_range_per_interval.setter
+    def y_range_per_interval(self, range_):
+        """Set voltage range per interval.
+
+        Args:
+            range_: Ranges per interval in volts.
+        """
+        self.y_range = range_*8
+
+    @property
+    def attenuation(self):
+        """Probe attenuation."""
+        return float(self._query(':CHANnel{}:PROBe?'.format(self.number)))
+
+    @attenuation.setter
+    def attenuation(self, att):
+        """Set probe attenuation range for each channel.
+
+        Args:
+            att: Attenuation to set.
+        """
+        self._write(':CHANnel{}:PROBe {}'.format(self.number, att))
+
+    @property
+    def measured_unit(self):
+        """Get the measurement unit of the probe."""
+        return self._query(':CHANnel{}:UNITs?'.format(self.number)).replace("\n", "")
+
+    @measured_unit.setter
+    def measured_unit(self, unit):
+        """Set the measurement unit of the probe.
+
+        Args:
+            unit: Unit to set. Either "VOLT" or "AMP".
+        """
+        self._write(':CHANnel{}:UNITs {}'.format(self.number, unit))
+
+    def set_as_waveform_source(self):
+        """Set the channel as source for acquiring waveform data."""
+        self._write(':WAVeform:SOURce CHANnel{}'.format(self.number))
+
+    def set_as_fft_source(self):
+        """Set the channel as source for the fft."""
+        self.osc.fft_source(self.number)
