@@ -177,7 +177,7 @@ class Oscilloscope:
 
     @waveform_source.setter
     def waveform_source(self, source):
-        """Select the source for the wave form data.
+        """Select the source for the waveform data.
 
         Args:
             source: Source for the waveform data (CHAN<n>, FUNC, MATH, FFT,
@@ -218,46 +218,192 @@ class Oscilloscope:
         self._write(':WAVeform:POINts {}'.format(num))
 
     @property
-    def fft_type(self):
-        """Selected FFT vertical units."""
-        return self._query(':FFT:VTYPe?').strip()
+    def func_type(self):
+        """Selected function type."""
+        return self._query(":FUNC:OPERation?").strip()
 
-    @fft_type.setter
-    def fft_type(self, type_fft):
-        """Select FFT vertical units.
+    @func_type.setter
+    def func_type(self, ftype):
+        """Select the current function type.
 
-        Args:
-            type_fft: current FFT vertical units ('DEC' or 'VRMS').
+         Args:
+             ftype (str): Current function operation ('ADD', 'SUBT',
+                          'MULT', 'DIV', 'FFT', 'FFTPhase', 'LOWPass').
         """
-        self._write(':FFT:VTYPe {}'.format(type_fft))
+        self._write(":FUNC:OPERation {}".format(ftype))
 
     @property
-    def fft_source(self):
-        """Selected FFT source."""
-        return self._query(':FFT:SOURce1?').strip()
+    def lowpass_frequency(self):
+        """Get the -3dB cutoff frequency in Hz for the func_type "LOWPass"."""
+        return float(self._query("FUNCtion:FREQuency:LOWPass?"))
 
-    @fft_source.setter
-    def fft_source(self, source):
-        """Select FFT source.
+    @lowpass_frequency.setter
+    def lowpass_frequency(self, frequency):
+        """Set the -3dB cutoff frequency in Hz for the func_type "LOWPass".
 
         Args:
-            source: channel source for the FFT.
+            frequency: Frequency to set the cutoff frequency.
         """
-        self._write(':FFT:SOURce1 CHAN{}'.format(source))
+        self._write("FUNCtion:FREQuency:LOWPass {}".format(frequency))
+
+    @property
+    def fft_ordinate_unit(self):
+        """Selected unit for the ordinate of the FFT operations.
+
+        If the the func_type is set to 'FFTPhase' the ordinate unit
+        of that operation is returned.
+
+        Else the 'FFT' ordinate unit is returned.
+        """
+        return self._query(':FUNCtion:FFT:VTYPe?').strip()
+
+    @fft_ordinate_unit.setter
+    def fft_ordinate_unit(self, fft_unit):
+        """Select the vertical unit for the FFT operations.
+
+        Args:
+            fft_unit: Current FFT vertical unit. 'RAD' or 'DEGR' when func_type
+                      is set to 'FFTPhase'. 'DEC' or 'VRMS' for the 'FFT'
+                      (Current func_type does not have to be 'FFT').
+        """
+        self._write(':FUNCtion:FFT:VTYPe {}'.format(fft_unit))
 
     @property
     def fft_window(self):
-        """Selected FFT window."""
-        return self._query(':FFT:WINDow?').strip()
+        """Selected FFT window. This option is applied on the 'FFT' as well
+         as the 'FFTPhase' func_type.
+        """
+        return self._query(':FUNCtion:FFT:WINDow?').strip()
 
     @fft_window.setter
     def fft_window(self, window):
-        """Select FFT window.
+        """Select FFT window. This option is applied on the 'FFT' as well
+         as the 'FFTPhase' func_type.
 
         Args:
-            window: window for the FFT ('RECT', 'HANN', 'FLAT' or 'BHAR').
+            window: Window for the FFT ('RECT', 'HANN', 'FLAT' or 'BHAR').
         """
         self._write(':FFT:WINDow {}'.format(window))
+
+    @property
+    def fft_center_freq(self):
+        """Get the center frequency of the FFT. This option is applied on
+        the 'FFT' as well as the 'FFTPhase' func_type.
+        """
+        return float(self._query(":FUNCtion:FFT:CENTer?").strip())
+
+    @fft_center_freq.setter
+    def fft_center_freq(self, frequency):
+        """Set the center frequency of the FFT in Hz. This option is
+        applied on the 'FFT' as well as the 'FFTPhase' func_type.
+
+        Args:
+            frequency (int): Center frequency of the FFT in Hz.
+        """
+        self._write(":FUNCtion:FFT:CENTer {}".format(frequency))
+
+    @property
+    def fft_span_freq(self):
+        """Get the frequency span of the FFT in Hz. This option is
+        applied on the 'FFT' as well as the 'FFTPhase' func_type.
+        """
+        return float(self._query(":FUNCtion:FFT:SPAN?").strip())
+
+    @fft_span_freq.setter
+    def fft_span_freq(self, frequency):
+        """Set the frequency span of the FFT in Hz. This option is
+        applied on the 'FFT' as well as the 'FFTPhase' func_type.
+
+        Args:
+            frequency (int): Span frequency of the FFT in Hz.
+        """
+        self._write(":FUNCtion:FFT:SPAN {}".format(frequency))
+
+    @property
+    def func_offset(self):
+        """Get the offset of the current func_type.
+
+        For the func_types 'ADD', 'SUBT', 'MULT', 'DIV' and 'LOWPass' the
+        offset is given in V.
+
+        For the func_type 'FFT' the offset is given in dBV or in V depending on
+        the current fft_ordinate_unit.
+
+        For the func_type 'FFTPhase' the offset is given in radiant or degrees
+        depending on the current fft_ordinate_unit.
+        """
+        return float(self._query(":FUNCtion:OFFSet?").strip())
+
+    @func_offset.setter
+    def func_offset(self, offset):
+        """Set offset of the current func_type.
+
+        For the func_types 'ADD', 'SUBT', 'MULT', 'DIV' and 'LOWPass' the
+        offset is set in V.
+
+        For the func_type 'FFT' the offset is set in dBV or in V depending on
+        the current fft_ordinate_unit.
+
+        For the func_type 'FFTPhase' the offset is set in radiant or degrees
+        depending on the current fft_ordinate_unit.
+
+        Args:
+            offset (float): Offset value to set.
+        """
+        self._write(":FUNCtion:OFFSet {}".format(offset))
+
+    @property
+    def function_scale(self):
+        """Get the scale of the current function.
+
+        For the func_types 'ADD', 'SUBT', 'MULT', 'DIV' and 'LOWPass' the
+        sclae is given in V.
+
+        For the func_type 'FFT' the scale is given in dB or in V depending on
+        the current fft_ordinate_unit.
+
+        For the func_type 'FFTPhase' the scale is given in radiant or degrees
+        depending on the current fft_ordinate_unit.
+        """
+        return self._query(":FUNCtion:SCALe?").strip()
+
+    @function_scale.setter
+    def function_scale(self, scale):
+        """Set the scale of the current function.
+
+        For the func_types 'ADD', 'SUBT', 'MULT', 'DIV' and 'LOWPass' the
+        sclae is set in V.
+
+        For the func_type 'FFT' the scale is set in dB or in V depending on
+        the current fft_ordinate_unit.
+
+        For the func_type 'FFTPhase' the scale is given in radiant or degrees
+        depending on the current fft_ordinate_unit.
+        """
+        self._write(":FUNCtion:SCALe {}".format(scale))
+
+    def get_function_source(self, source):
+        """Get a function source. There are two sources
+        (source 1 and source 2). These sources are used for the
+        operations/func_types and can be channel 1 or channel 2.
+
+        Args:
+            source(int): Source to get.
+        """
+        return self._query(":FUNCtion:SOURce{}?".format(source)).strip()
+
+    def set_function_source(self, source, channel):
+        """Set a function source. There are two sources
+        (source 1 and source 2). These sources are used for the func_types
+        and can be channel 1 or channel 2. The func_types 'ADD', 'SUBT',
+        'MULT' and 'DIV' use source 1 and source 2. The func_types 'FFT',
+        'FFTPhase', and 'LOWPass' use only source 1.
+
+        Args:
+            source: Source to set.
+            channel: Channel to set the source to.
+        """
+        self._write(":FUNCtion:SOURce{} CHANnel{}".format(source, channel))
 
     @property
     def white_image_bg(self):
@@ -276,7 +422,8 @@ class Oscilloscope:
         """Get the signal displayed on screen.
 
         Args:
-            source: Source of the signal (channel or function).
+            source: Source for the waveform data (CHAN<n>, FUNC, MATH, FFT,
+                    WMEM<r>, ABUS, EXT).
         """
         if source:
             self.waveform_source = source
@@ -289,7 +436,8 @@ class Oscilloscope:
         """Get the time vector for the signal displayed on screen.
 
         Args:
-            source: Source of the signal (channel or function).
+            source: Source for the waveform data (CHAN<n>, FUNC, MATH, FFT,
+                    WMEM<r>, ABUS, EXT).
         """
         if source:
             self.waveform_source = source
@@ -310,11 +458,27 @@ class Oscilloscope:
         with open(filename, 'wb') as file:
             file.write(image_data[0])
 
+    def save_setup(self, index):
+        """Save the current setup on the internal oscilloscope memory.
+
+        Args:
+            index (int): Index of the setup file (0-9).
+        """
+        self._write(':SAVE:SETup {}'.format(index))
+
+    def load_setup(self, index):
+        """Load a setup from the internal oscilloscope memory.
+
+        Args:
+            index (int): Index of the setup file (0-9).
+        """
+        self._write(":RECall:SETup {}".format(index))
+
 
 class Channel:
     """Channel class for the Oscilloscope."""
-    def __init__(self, osc, number):
-        self.number = number
+    def __init__(self, osc, channel_index):
+        self.channel_index = channel_index
         self.osc = osc
 
     def _write(self, message):
@@ -329,7 +493,7 @@ class Channel:
     @property
     def y_range(self):
         """Range of the channel in volts."""
-        return float(self._query(':CHANnel{}:RANGe?'.format(self.number)))
+        return float(self._query(':CHANnel{}:RANGe?'.format(self.channel_index)))
 
     @y_range.setter
     def y_range(self, range_):
@@ -338,7 +502,7 @@ class Channel:
         Args:
             range_: Range in volts.
         """
-        self._write(':CHANnel{}:RANGe {}V'.format(self.number, range_))
+        self._write(':CHANnel{}:RANGe {}V'.format(self.channel_index, range_))
 
     @property
     def y_range_per_interval(self):
@@ -357,7 +521,7 @@ class Channel:
     @property
     def attenuation(self):
         """Probe attenuation."""
-        return float(self._query(':CHANnel{}:PROBe?'.format(self.number)))
+        return float(self._query(':CHANnel{}:PROBe?'.format(self.channel_index)))
 
     @attenuation.setter
     def attenuation(self, att):
@@ -366,12 +530,12 @@ class Channel:
         Args:
             att: Attenuation to set.
         """
-        self._write(':CHANnel{}:PROBe {}'.format(self.number, att))
+        self._write(':CHANnel{}:PROBe {}'.format(self.channel_index, att))
 
     @property
     def measured_unit(self):
         """Get the measurement unit of the probe."""
-        return self._query(':CHANnel{}:UNITs?'.format(self.number)).replace("\n", "")
+        return self._query(':CHANnel{}:UNITs?'.format(self.channel_index)).replace("\n", "")
 
     @measured_unit.setter
     def measured_unit(self, unit):
@@ -380,12 +544,8 @@ class Channel:
         Args:
             unit: Unit to set. Either "VOLT" or "AMP".
         """
-        self._write(':CHANnel{}:UNITs {}'.format(self.number, unit))
+        self._write(':CHANnel{}:UNITs {}'.format(self.channel_index, unit))
 
-    def set_as_waveform_source(self):
-        """Set the channel as source for acquiring waveform data."""
-        self._write(':WAVeform:SOURce CHANnel{}'.format(self.number))
-
-    def set_as_fft_source(self):
-        """Set the channel as source for the fft."""
-        self.osc.fft_source(self.number)
+    def get_signal(self):
+        """Get the signal of the channel."""
+        self.osc.get_signal("CHAN{}")
