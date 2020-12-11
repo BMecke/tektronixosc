@@ -1,5 +1,6 @@
 import visa as vi
 import pyvisa
+import numpy as np
 
 
 def list_connected_devices():
@@ -548,4 +549,23 @@ class Channel:
 
     def get_signal(self):
         """Get the signal of the channel."""
-        self.osc.get_signal("CHAN{}")
+        self.osc.get_signal("CHAN{}".format(self.channel_index))
+
+    def get_time_vector(self):
+        """Get the time vector of the current channel signal."""
+        self.osc.get_time_vector("CHAN{}".format(self.channel_index))
+
+    def get_fft_internal(self):
+        """Get the FFT of the channel calculated by the oscilloscope.
+        Has no DC component. This modifies the current func_type.
+        """
+        self.osc.func_type = "FFT"
+        return self.osc.get_signal("FUNC")
+
+    def get_frequency_vector_internal(self):
+        """Get the frequency vector of the internal FFT."""
+        center_freq = self.osc.fft_center_freq
+        span_freq = self.osc.fft_span_freq
+        sample_size = len(self.get_fft_internal())
+        frequency_vector = np.linspace(-span_freq/2+center_freq, center_freq+span_freq/2, sample_size)
+        return frequency_vector
