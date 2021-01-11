@@ -219,28 +219,30 @@ class Oscilloscope:
         self._write(':WAVeform:POINts {}'.format(num))
 
     @property
-    def func_type(self):
-        """Selected function type."""
+    def math_function(self):
+        """Selected math function."""
         return self._query(":FUNC:OPERation?").strip()
 
-    @func_type.setter
-    def func_type(self, ftype):
-        """Select the current function type.
+    @math_function.setter
+    def math_function(self, ftype):
+        """Select the current math_function.
 
          Args:
-             ftype (str): Current function operation ('ADD', 'SUBT',
-                          'MULT', 'DIV', 'FFT', 'FFTPhase', 'LOWPass').
+             ftype (str): Current function ('ADD', 'SUBT', 'MULT', 'DIV',
+                          'FFT', 'FFTPhase', 'LOWPass').
         """
         self._write(":FUNC:OPERation {}".format(ftype))
 
     @property
-    def lowpass_frequency(self):
-        """Get the -3dB cutoff frequency in Hz for the func_type "LOWPass"."""
+    def math_lowpass_freq(self):
+        """Get the -3dB cutoff frequency in Hz for the math_function
+        "LOWPass".
+        """
         return float(self._query("FUNCtion:FREQuency:LOWPass?"))
 
-    @lowpass_frequency.setter
-    def lowpass_frequency(self, frequency):
-        """Set the -3dB cutoff frequency in Hz for the func_type "LOWPass".
+    @math_lowpass_freq.setter
+    def math_lowpass_freq(self, frequency):
+        """Set the -3dB cutoff frequency in Hz for the math_function "LOWPass".
 
         Args:
             frequency: Frequency to set the cutoff frequency.
@@ -248,55 +250,56 @@ class Oscilloscope:
         self._write("FUNCtion:FREQuency:LOWPass {}".format(frequency))
 
     @property
-    def fft_ordinate_unit(self):
+    def math_fft_ordinate_unit(self):
         """Selected unit for the ordinate of the FFT operations.
 
-        If the the func_type is set to 'FFTPhase' the ordinate unit
+        If the the math_function is set to 'FFTPhase' the ordinate unit
         of that operation is returned.
 
         Else the 'FFT' ordinate unit is returned.
         """
         return self._query(':FUNCtion:FFT:VTYPe?').strip()
 
-    @fft_ordinate_unit.setter
-    def fft_ordinate_unit(self, fft_unit):
+    @math_fft_ordinate_unit.setter
+    def math_fft_ordinate_unit(self, fft_unit):
         """Select the vertical unit for the FFT operations.
 
         Args:
-            fft_unit: Current FFT vertical unit. 'RAD' or 'DEGR' when func_type
-                      is set to 'FFTPhase'. 'DEC' or 'VRMS' for the 'FFT'
-                      (Current func_type does not have to be 'FFT').
+            fft_unit: Current FFT vertical unit. 'RAD' or 'DEGR' when
+                      math_function is set to 'FFTPhase'. 'DEC' or 'VRMS' for
+                      the 'FFT' (Current math_function does not have to be
+                      'FFT').
         """
         self._write(':FUNCtion:FFT:VTYPe {}'.format(fft_unit))
 
     @property
-    def fft_window(self):
+    def math_fft_window(self):
         """Selected FFT window. This option is applied on the 'FFT' as well
-         as the 'FFTPhase' func_type.
+         as the 'FFTPhase' math_function.
         """
         return self._query(':FUNCtion:FFT:WINDow?').strip()
 
-    @fft_window.setter
-    def fft_window(self, window):
+    @math_fft_window.setter
+    def math_fft_window(self, window):
         """Select FFT window. This option is applied on the 'FFT' as well
-         as the 'FFTPhase' func_type.
+         as the 'FFTPhase' math_function.
 
         Args:
             window: Window for the FFT ('RECT', 'HANN', 'FLAT' or 'BHAR').
         """
-        self._write(':FFT:WINDow {}'.format(window))
+        self._write('FUNCtion:FFT:WINDow {}'.format(window))
 
     @property
-    def fft_center_freq(self):
+    def math_fft_center_freq(self):
         """Get the center frequency of the FFT. This option is applied on
-        the 'FFT' as well as the 'FFTPhase' func_type.
+        the 'FFT' as well as the 'FFTPhase' math_function.
         """
         return float(self._query(":FUNCtion:FFT:CENTer?").strip())
 
-    @fft_center_freq.setter
-    def fft_center_freq(self, frequency):
+    @math_fft_center_freq.setter
+    def math_fft_center_freq(self, frequency):
         """Set the center frequency of the FFT in Hz. This option is
-        applied on the 'FFT' as well as the 'FFTPhase' func_type.
+        applied on the 'FFT' as well as the 'FFTPhase' math_function.
 
         Args:
             frequency (int): Center frequency of the FFT in Hz.
@@ -304,16 +307,16 @@ class Oscilloscope:
         self._write(":FUNCtion:FFT:CENTer {}".format(frequency))
 
     @property
-    def fft_span_freq(self):
+    def math_fft_span_freq(self):
         """Get the frequency span of the FFT in Hz. This option is
-        applied on the 'FFT' as well as the 'FFTPhase' func_type.
+        applied on the 'FFT' as well as the 'FFTPhase' math_function.
         """
         return float(self._query(":FUNCtion:FFT:SPAN?").strip())
 
-    @fft_span_freq.setter
-    def fft_span_freq(self, frequency):
+    @math_fft_span_freq.setter
+    def math_fft_span_freq(self, frequency):
         """Set the frequency span of the FFT in Hz. This option is
-        applied on the 'FFT' as well as the 'FFTPhase' func_type.
+        applied on the 'FFT' as well as the 'FFTPhase' math_function.
 
         Args:
             frequency (int): Span frequency of the FFT in Hz.
@@ -321,32 +324,32 @@ class Oscilloscope:
         self._write(":FUNCtion:FFT:SPAN {}".format(frequency))
 
     @property
-    def func_offset(self):
-        """Get the offset of the current func_type.
+    def math_function_offset(self):
+        """Get the offset of the current math_function.
 
-        For the func_types 'ADD', 'SUBT', 'MULT', 'DIV' and 'LOWPass' the
+        For the math_functions 'ADD', 'SUBT', 'MULT', 'DIV' and 'LOWPass' the
         offset is given in V.
 
-        For the func_type 'FFT' the offset is given in dBV or in V depending on
-        the current fft_ordinate_unit.
-
-        For the func_type 'FFTPhase' the offset is given in radiant or degrees
+        For the math_function 'FFT' the offset is given in dBV or in V
         depending on the current fft_ordinate_unit.
+
+        For the math_function 'FFTPhase' the offset is given in radiant or
+        degrees depending on the current fft_ordinate_unit.
         """
         return float(self._query(":FUNCtion:OFFSet?").strip())
 
-    @func_offset.setter
-    def func_offset(self, offset):
-        """Set offset of the current func_type.
+    @math_function_offset.setter
+    def math_function_offset(self, offset):
+        """Set offset of the current math_function.
 
-        For the func_types 'ADD', 'SUBT', 'MULT', 'DIV' and 'LOWPass' the
+        For the math_functions 'ADD', 'SUBT', 'MULT', 'DIV' and 'LOWPass' the
         offset is set in V.
 
-        For the func_type 'FFT' the offset is set in dBV or in V depending on
-        the current fft_ordinate_unit.
+        For the math_function 'FFT' the offset is set in dBV or in V depending
+        on the current fft_ordinate_unit.
 
-        For the func_type 'FFTPhase' the offset is set in radiant or degrees
-        depending on the current fft_ordinate_unit.
+        For the math_function 'FFTPhase' the offset is set in radiant or
+        degrees depending on the current fft_ordinate_unit.
 
         Args:
             offset (float): Offset value to set.
@@ -354,51 +357,51 @@ class Oscilloscope:
         self._write(":FUNCtion:OFFSet {}".format(offset))
 
     @property
-    def function_scale(self):
-        """Get the scale of the current function.
+    def math_function_scale(self):
+        """Get the scale of the current math_function.
 
-        For the func_types 'ADD', 'SUBT', 'MULT', 'DIV' and 'LOWPass' the
-        sclae is given in V.
+        For the math_functions 'ADD', 'SUBT', 'MULT', 'DIV' and 'LOWPass' the
+        scale is given in V.
 
-        For the func_type 'FFT' the scale is given in dB or in V depending on
-        the current fft_ordinate_unit.
+        For the math_function 'FFT' the scale is given in dB or in V depending
+        on the current fft_ordinate_unit.
 
-        For the func_type 'FFTPhase' the scale is given in radiant or degrees
-        depending on the current fft_ordinate_unit.
+        For the math_function 'FFTPhase' the scale is given in radiant or
+        degrees depending on the current fft_ordinate_unit.
         """
-        return self._query(":FUNCtion:SCALe?").strip()
+        return float(self._query(":FUNCtion:SCALe?").strip())
 
-    @function_scale.setter
-    def function_scale(self, scale):
-        """Set the scale of the current function.
+    @math_function_scale.setter
+    def math_function_scale(self, scale):
+        """Set the scale of the current math_function.
 
-        For the func_types 'ADD', 'SUBT', 'MULT', 'DIV' and 'LOWPass' the
-        sclae is set in V.
+        For the math_functions 'ADD', 'SUBT', 'MULT', 'DIV' and 'LOWPass' the
+        scale is set in V.
 
-        For the func_type 'FFT' the scale is set in dB or in V depending on
+        For the math_function 'FFT' the scale is set in dB or in V depending on
         the current fft_ordinate_unit.
 
-        For the func_type 'FFTPhase' the scale is given in radiant or degrees
-        depending on the current fft_ordinate_unit.
+        For the math_function 'FFTPhase' the scale is given in radiant or
+        degrees depending on the current fft_ordinate_unit.
         """
         self._write(":FUNCtion:SCALe {}".format(scale))
 
-    def get_function_source(self, source):
+    def get_math_function_source(self, source):
         """Get a function source. There are two sources
         (source 1 and source 2). These sources are used for the
-        operations/func_types and can be channel 1 or channel 2.
+        math_functions and can be either channel 1 or channel 2.
 
         Args:
             source(int): Source to get.
         """
         return self._query(":FUNCtion:SOURce{}?".format(source)).strip()
 
-    def set_function_source(self, source, channel):
-        """Set a function source. There are two sources
-        (source 1 and source 2). These sources are used for the func_types
-        and can be channel 1 or channel 2. The func_types 'ADD', 'SUBT',
-        'MULT' and 'DIV' use source 1 and source 2. The func_types 'FFT',
-        'FFTPhase', and 'LOWPass' use only source 1.
+    def set_math_function_source(self, source, channel):
+        """Set a math source. There are two sources (source 1 and source 2).
+        These sources are used for the math_functions and can be channel 1 or
+        channel 2. The math_functions 'ADD', 'SUBT', 'MULT' and 'DIV' use
+        source 1 and source 2. The math_functions 'FFT', 'FFTPhase', and
+        'LOWPass' use only source 1.
 
         Args:
             source: Source to set.
@@ -555,17 +558,18 @@ class Channel:
         """Get the time vector of the current channel signal."""
         self.osc.get_time_vector("CHAN{}".format(self.channel_index))
 
-    def get_fft_internal(self):
-        """Get the FFT of the channel calculated by the oscilloscope.
-        Has no DC component. This modifies the current func_type.
+    def get_math_fft(self):
+        """Get the math FFT of the channel calculated by the oscilloscope.
+        Has no DC component. This modifies the current math_function.
         """
         self.osc.func_type = "FFT"
         return self.osc.get_signal("FUNC")
 
-    def get_frequency_vector_internal(self):
-        """Get the frequency vector of the internal FFT."""
-        center_freq = self.osc.fft_center_freq
-        span_freq = self.osc.fft_span_freq
-        sample_size = len(self.get_fft_internal())
-        frequency_vector = np.linspace(-span_freq/2+center_freq, center_freq+span_freq/2, sample_size)
+    def get_math_frequency_vector(self):
+        """Get the frequency vector of the math FFT."""
+        center_freq = self.osc.math_fft_center_freq
+        span_freq = self.osc.math_fft_span_freq
+        sample_size = self.osc.waveform_points
+        frequency_vector = np.linspace(-span_freq/2+center_freq,
+                                       center_freq+span_freq/2, sample_size)
         return frequency_vector
