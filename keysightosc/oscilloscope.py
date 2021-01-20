@@ -673,7 +673,7 @@ class Channel:
 
     def get_signal(self):
         """Get the signal of the channel."""
-        self.osc.get_signal("CHAN{}".format(self.channel_index))
+        return self.osc.get_signal("CHAN{}".format(self.channel_index))
 
     def get_time_vector(self):
         """Get the time vector of the current channel signal."""
