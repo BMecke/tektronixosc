@@ -548,7 +548,8 @@ class Oscilloscope:
 
         Args:
             source: Source for the waveform data (CHAN<n>, FUNC, MATH, FFT,
-                    WMEM<r>, ABUS, EXT).
+                    WMEM<r>, ABUS, EXT). If set to None the current selected
+                    waveform_source is retrieved as signal source.
         """
         if source:
             self.waveform_source = source
@@ -562,7 +563,9 @@ class Oscilloscope:
 
         Args:
             source: Source for the waveform data (CHAN<n>, FUNC, MATH, FFT,
-                    WMEM<r>, ABUS, EXT).
+                    WMEM<r>, ABUS, EXT). If set to None the current selected
+                    waveform_source is retrieved as signal source
+                    for the time vector.
         """
         if source:
             self.waveform_source = source
