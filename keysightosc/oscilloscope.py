@@ -680,7 +680,7 @@ class Channel:
 
     def get_time_vector(self):
         """Get the time vector of the current channel signal."""
-        self.osc.get_time_vector("CHAN{}".format(self.channel_index))
+        return self.osc.get_time_vector("CHAN{}".format(self.channel_index))
 
     def get_math_fft(self):
         """Get the MATH FFT of the channel calculated by the oscilloscope.
