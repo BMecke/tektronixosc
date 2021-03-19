@@ -108,7 +108,8 @@ class Oscilloscope:
               attenuation is set to 1:1.
         """
         self._write('*RST')
-        self.attenuation = 1
+        self.channels[0].attenuation = 1
+        self.channels[1].attenuation = 1
 
     def run(self):
         """Start data acquisition."""
