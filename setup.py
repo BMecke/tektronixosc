@@ -30,7 +30,7 @@ setup(
 
     # Runtime dependencies
     install_requires=[
-        'pyvisa'
+        'pyvisa', 'numpy'
     ],
 
     # Python version requirement
