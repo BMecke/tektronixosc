@@ -129,7 +129,7 @@ class Oscilloscope:
     def get_signal_raw(self):
         """Get the raw data displayed on screen."""
         data = self._query_binary(':WAVeform:DATA?')
-        return list(data[0])
+        return list(data)
 
     @property
     def x_range(self):
@@ -202,7 +202,7 @@ class Oscilloscope:
     @property
     def waveform_points(self):
         """Number of points to be transferred in the selected record mode."""
-        return self._query(':WAVeform:POINts?')
+        return int(self._query(':WAVeform:POINts?').strip())
 
     @waveform_points.setter
     def waveform_points(self, num):
@@ -583,7 +583,7 @@ class Oscilloscope:
         if not filename.endswith('.png'):
             filename += '.png'
         with open(filename, 'wb') as file:
-            file.write(image_data[0])
+            file.write(bytearray(image_data))
 
     def save_setup(self, index):
         """Save the current setup on the internal oscilloscope memory.
