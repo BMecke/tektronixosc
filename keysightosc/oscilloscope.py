@@ -1,5 +1,4 @@
-import visa as vi
-import pyvisa
+import pyvisa as vi
 import numpy as np
 
 
@@ -34,7 +33,7 @@ class Oscilloscope:
                     try:
                         self._instrument = self._resource_manager.open_resource(connected_resources[res_num])
                         break
-                    except pyvisa.errors.VisaIOError:
+                    except vi.errors.VisaIOError:
                         res_num += 1
                         pass
                     except IndexError:
