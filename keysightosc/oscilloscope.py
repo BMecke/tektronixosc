@@ -17,30 +17,33 @@ class Oscilloscope:
         VISA interface.
 
         Args:
-            resource (str): Resource name of the instrument. If not specified,
-                            first connected device returned by visa.
+            resource (str): Resource name of the instrument or product ID.
+                            If not specified, first connected device returned by visa.
                             ResourceManager's list_resources method is used.
         """
 
+        # find the resource or set it to None, if the instr_id is not in the list
         self._resource_manager = vi.ResourceManager()
-        if not resource:
-            connected_resources = self._resource_manager.list_resources()
-            if len(connected_resources) == 0:
-                raise RuntimeError('No device connected.')
-            else:
-                res_num = 0
-                while True:
-                    try:
-                        self._instrument = self._resource_manager.open_resource(connected_resources[res_num])
-                        break
-                    except vi.errors.VisaIOError:
-                        res_num += 1
-                        pass
-                    except IndexError:
-                        raise RuntimeError("No visa device connected")
+        resource_list = self._resource_manager.list_resources()
+        visa_name = next((item for item in resource_list if item == resource or item.split('::')[3] == resource), None)
 
+        if visa_name is not None:
+            self._instrument = self._resource_manager.open_resource(visa_name)
         else:
-            self._instrument = self._resource_manager.open_resource(resource)
+            connected = False
+            for res_num in range(len(resource_list)):
+                try:
+                    self._instrument = self._resource_manager.open_resource(resource_list[res_num])
+                    connected = True
+                    break
+                except vi.errors.VisaIOError:
+                    pass
+            if not connected:
+                raise RuntimeError("No visa device connected")
+
+        # Clear device to prevent "Query INTERRUPTED" errors when the device was plugged off before
+        self._clear()
+
         # Set query_delay to 0.2 seconds to transmit data securely.
         # Important for Linux systems, because zero delay causes false data.
         self.visa_query_delay = 0.2
@@ -48,6 +51,15 @@ class Oscilloscope:
         self.visa_timeout = 10
 
         self.channels = [Channel(self, 1), Channel(self, 2)]
+
+    def _clear(self):
+        """
+        Clears the status and the error queue.
+
+        The *CLS common command clears the status data structures, the device-defined error queue,
+        and the Request-for-OPC flag.
+        """
+        self._instrument.write('*CLS')
 
     def _err_check(self):
         """Check if instrument for error."""
