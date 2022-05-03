@@ -9,6 +9,27 @@ def list_connected_devices():
     return resources
 
 
+def get_device_id(resource):
+    """
+    Get the Identification Number of the specified resource.
+
+    Args:
+        resource (str): The resource from which to get the IDN.
+
+    Returns:
+        dict[str, str]: The 'Manufacturer', 'Model' and 'Serial Number'.
+    """
+    try:
+        rm = vi.ResourceManager()
+        device = rm.open_resource(resource)
+        idn = device.query('*IDN?')
+        parts = idn.split(',')
+        return {'Manufacturer': parts[0], 'Model': parts[1], 'Serial Number': parts[2]}
+
+    except (vi.errors.VisaIOError, ValueError):
+        return None
+
+
 class Oscilloscope:
     """Interface for a Keysight digital storage oscilloscope."""
 
@@ -83,6 +104,39 @@ class Oscilloscope:
         answer = self._instrument.query_binary_values(message, datatype='s')
         self._err_check()
         return answer
+
+    def _acquire_points(self):
+        """
+        Get the number of data points that the hardware will acquire from the input signal.
+
+        The number of points acquired is not directly controllable. To set the number of points
+        to be transferred from the oscilloscope, use the command :WAVeform:POINts.
+        The :WAVeform:POINts? query will return the number of points available to be transferred from the oscilloscope.
+
+        Returns:
+             int: Number of data points
+        """
+        return int(self._query(':ACQuire:POINts?').strip())
+
+    @property
+    def _identification_number(self):
+        """
+        Get the instrument type and software version.
+
+        Returns:
+            str: The IDN in the following format: <manufacturer_string>,<model>,<serial_number>,<software_revision>
+        """
+        return self._query('*IDN?')
+
+    @property
+    def device_model(self):
+        """
+        Get the device model.
+
+        Returns:
+            str: The device model
+        """
+        return self._identification_number.split(',')[1]
 
     @property
     def visa_query_delay(self):
@@ -200,12 +254,38 @@ class Oscilloscope:
 
     @property
     def waveform_points_mode(self):
-        """Selected record mode."""
+        """
+        Get the data record to be transferred with the :WAVeform:DATA? query.
+
+        For the analog sources, there are two different records that can be transferred:
+            • The first is the raw acquisition record. The maximum number of points available
+            in this record is returned by the :ACQuire:POINts? query. The raw acquisition
+            record can only be transferred when the oscilloscope is not running and can
+            only be retrieved from the analog sources.
+
+            • The second is referred to as the measurement record and is a 62,500-point
+            (maximum) representation of the raw acquisition record. The measurement
+            record can be retrieved from any source.
+
+        Returns:
+            str: The points mode ('NORM', 'MAX' or 'RAW').
+        """
         return self._query(':WAVeform:POINts:MODE?')
 
     @waveform_points_mode.setter
     def waveform_points_mode(self, mode):
-        """Select record mode.
+        """
+        Set the data record to be transferred with the :WAVeform:DATA? query.
+
+        For the analog sources, there are two different records that can be transferred:
+            • The first is the raw acquisition record. The maximum number of points available
+            in this record is returned by the :ACQuire:POINts? query. The raw acquisition
+            record can only be transferred when the oscilloscope is not running and can
+            only be retrieved from the analog sources.
+
+            • The second is referred to as the measurement record and is a 62,500-point
+            (maximum) representation of the raw acquisition record. The measurement
+            record can be retrieved from any source.
 
         Args:
             mode: A string specifying the mode ('NORM', 'MAX' or 'RAW').
@@ -224,11 +304,150 @@ class Oscilloscope:
         'RAW' mode.
 
         Args:
-            num: The number of points to be transferred.
+            num (int): The number of points to be transferred.
         """
         if (self.waveform_points_mode == 'RAW\n') or (self.waveform_points_mode == 'MAX\n'):
             self.stop()
+        if self.waveform_count_max < num:
+            num = self.waveform_count_max
         self._write(':WAVeform:POINts {}'.format(num))
+
+    @property
+    def waveform_count_max(self):
+        """
+        Get the maximum number of points to be transferred in the selected record mode.
+
+        If the device is set to raw acquisition record, the maximum number of points is returned
+        by the :ACQuire:POINts? query. If the device is set to measurement record, the maximum
+        number of points is 62,500.
+
+        Returns:
+            int: Maximum number of waveform points.
+        """
+
+        if self.waveform_points_mode == 'NORM\n':
+            return 62500
+        else:
+            return self._acquire_points()
+
+    @property
+    def timebase_scale(self):
+        """
+        Get the horizontal scale.
+
+        The :TIMebase:SCALe command sets the horizontal scale or units per division for the main window.
+
+        Returns:
+            float: time/div in seconds.
+        """
+        return float(self._query(':TIMebase:SCALe?').strip())
+
+    @timebase_scale.setter
+    def timebase_scale(self, time_per_div_in_s):
+        """
+        Set the horizontal scale.
+
+        The :TIMebase:SCALe command sets the horizontal scale or units per division for the main window.
+
+        Args:
+            time_per_div_in_s (float): time/div in seconds.
+        """
+        self._write(':TIMebase:SCALe {}'.format(time_per_div_in_s))
+
+    @property
+    def acquire_sample_rate(self):
+        """
+        Get the current sample rate.
+
+        The :ACQuire:SRATe? query returns the current oscilloscope acquisition sample rate.
+        The sample rate is not directly controllable.
+
+        Returns:
+            float: the sample rate.
+        """
+        return float(self._query(':ACQuire:SRATe?').strip())
+
+    @property
+    def trigger_mode(self):
+        """
+        Get the current trigger mode.
+
+        If the :TIMebase:MODE is ROLL or XY, the query returns "NONE".
+
+        Returns:
+            str: The trigger mode ('EDGE', 'GLIT', 'PATT', 'SHOL', 'TRAN', 'TV' or 'SBUS1').
+        """
+        return self._query(':TRIGger:MODE?').strip()
+
+    @trigger_mode.setter
+    def trigger_mode(self, trigger_mode):
+        """
+        Set the current trigger mode.
+
+        Args:
+            trigger_mode (str): The trigger mode ('EDGE', 'GLIT', 'PATT', 'SHOL', 'TRAN', 'TV' or 'SBUS1').
+        """
+        self._write(':TRIGger:MODE {}'.format(trigger_mode))
+
+    @property
+    def trig_sweep(self):
+        """
+        Get the trigger sweep mode.
+
+        When AUTO sweep mode is selected, a baseline is displayed in the absence of a signal.
+        If a signal is present but the oscilloscope is not triggered, the unsynchronized signal
+        is displayed instead of a baseline. When NORMal sweep mode is selected and no trigger
+        is present, the instrument does not sweep, and the data acquired on the previous trigger
+        remains on the screen.
+
+        Returns:
+            str: The trigger sweep mode ('AUTO' or 'NORM').
+        """
+        return self._query(':TRIGger:SWEep?').strip()
+
+    @trig_sweep.setter
+    def trig_sweep(self, sweep_mode):
+        """
+        Set the trigger sweep mode.
+
+        When AUTO sweep mode is selected, a baseline is displayed in the absence of a signal.
+        If a signal is present but the oscilloscope is not triggered, the unsynchronized signal
+        is displayed instead of a baseline. When NORMal sweep mode is selected and no trigger
+        is present, the instrument does not sweep, and the data acquired on the previous trigger
+        remains on the screen.
+
+        Args:
+            sweep_mode (str): The trigger sweep mode ('AUTO' or 'NORM').
+        """
+        self._write(':TRIGger:SWEep {}'.format(sweep_mode))
+
+    @property
+    def trig_slope(self):
+        """
+        Get the slope of the edge for the trigger.
+
+        The :TRIGger:SLOPe command specifies the slope of the edge for the trigger.
+        The SLOPe command is not valid in TV trigger mode. Instead, use :TRIGger:TV:POLarity
+        to set the polarity in TV trigger mode.
+
+        Returns:
+            str: The trigger slope ('NEG', 'POS', 'EITH', 'ALT').
+        """
+        return self._query(':TRIGger:SLOPe?').strip()
+
+    @trig_slope.setter
+    def trig_slope(self, trig_slope):
+        """
+        Set the slope of the edge for the trigger.
+
+        The :TRIGger:SLOPe command specifies the slope of the edge for the trigger.
+        The SLOPe command is not valid in TV trigger mode. Instead, use :TRIGger:TV:POLarity
+        to set the polarity in TV trigger mode.
+
+        Args:
+            trig_slope (str): The trigger slope ('NEG', 'POS', 'EITH', 'ALT').
+        """
+        self._write(':TRIGger:SLOPe {}'.format(trig_slope))
 
     @property
     def fft_ordinate_unit(self):
@@ -581,7 +800,7 @@ class Oscilloscope:
         """
         if source:
             self.waveform_source = source
-        n_samples = len(self.get_signal_raw())
+        n_samples = self.waveform_points
         increment = self.x_increment
         offset = self.x_offset
         return [offset + increment * idx for idx in range(n_samples)]
@@ -617,6 +836,7 @@ class Oscilloscope:
 
 class Channel:
     """Channel class for the Oscilloscope."""
+
     def __init__(self, osc, channel_index):
         self.channel_index = channel_index
         self.osc = osc
@@ -629,6 +849,80 @@ class Channel:
         """Send a query to the visa interface and check for errors."""
         value = self.osc._query(message)
         return value
+
+    @property
+    def _trig_lvl_low(self):
+        """
+        Get the low trigger voltage level voltage for the specified source.
+
+        The trigger levels LOW and HIGH are only useful if the trigger mode is set to "Transition mode" (Tran).
+
+        Returns:
+            float: The low trigger voltage level.
+        """
+        return float(self._query(':TRIGger:LEVel:LOW? CHANnel{}'.format(self.channel_index)).replace("\n", ""))
+
+    @_trig_lvl_low.setter
+    def _trig_lvl_low(self, trig_lvl):
+        """
+        Set the low trigger voltage level voltage for the specified source.
+
+        The trigger levels LOW and HIGH are only useful if the trigger mode is set to "Transition mode" (Tran).
+
+        Args:
+            trig_lvl (float): The low trigger voltage level.
+        """
+        self._write(':TRIGger:LEVel:LOW {}, CHANnel{}'.format(trig_lvl, self.channel_index))
+
+    @property
+    def _trig_lvl_high(self):
+        """
+        Get the high trigger voltage level voltage for the specified source.
+
+        The trigger levels LOW and HIGH are only useful if the trigger mode is set to "Transition mode" (Tran).
+
+        Returns:
+            float: The high trigger voltage level.
+        """
+        return float(self._query(':TRIGger:LEVel:HIGH? CHANnel{}'.format(self.channel_index)).replace("\n", ""))
+
+    @_trig_lvl_high.setter
+    def _trig_lvl_high(self, trig_lvl):
+        """
+        Set the high trigger voltage level voltage for the specified source.
+
+        The trigger levels LOW and HIGH are only useful if the trigger mode is set to "Transition mode" (Tran).
+
+        Args:
+            trig_lvl (float): The high trigger voltage level.
+        """
+        self._write(':TRIGger:LEVel:HIGH {}, CHANnel{}'.format(trig_lvl, self.channel_index))
+
+    @property
+    def _trig_lvl(self):
+        """
+        Get the trigger level voltage for the active trigger source.
+
+        The trigger level is only useful if the trigger mode is set to "Edge triggering" (Edge) or
+        "Pulse Width triggering" (Glitch).
+
+        Returns:
+            float: The edge trigger voltage level.
+        """
+        return float(self._query(':TRIGger:LEVel? CHANnel{}'.format(self.channel_index)).replace("\n", ""))
+
+    @_trig_lvl.setter
+    def _trig_lvl(self, trig_lvl):
+        """
+        Set the trigger level voltage for the active trigger source.
+
+        The trigger level is only useful if the trigger mode is set to "Edge triggering" (Edge) or
+        "Pulse Width triggering" (Glitch).
+
+        Args:
+            trig_lvl (float): The edge trigger voltage level.
+        """
+        self._write(':TRIGger:LEVel {}, CHANnel{}'.format(trig_lvl, self.channel_index))
 
     @property
     def y_range(self):
@@ -647,7 +941,7 @@ class Channel:
     @property
     def y_range_per_interval(self):
         """Range per interval in volts."""
-        return self.y_range/8
+        return self.y_range / 8
 
     @y_range_per_interval.setter
     def y_range_per_interval(self, range_):
@@ -656,7 +950,7 @@ class Channel:
         Args:
             range_: Ranges per interval in volts.
         """
-        self.y_range = range_*8
+        self.y_range = range_ * 8
 
     @property
     def attenuation(self):
@@ -686,6 +980,60 @@ class Channel:
         """
         self._write(':CHANnel{}:UNITs {}'.format(self.channel_index, unit))
 
+    @property
+    def coupling(self):
+        """
+        Get the input coupling for the specified channel.
+
+        Returns:
+            str: The coupling for the selected channel ('AC' or 'DC').
+        """
+        return self._query(':CHANnel{}:COUPling?'.format(self.channel_index)).replace("\n", "")
+
+    @coupling.setter
+    def coupling(self, coupling):
+        """
+        Set the input coupling for the specified channel.
+
+        The coupling for each analog channel can be set to AC or DC.
+
+        Args:
+            coupling (str): The coupling for the selected channel ('AC' or 'DC').
+        """
+        self._write(':CHANnel{}:COUPling {}'.format(self.channel_index, coupling))
+
+    @property
+    def trig_lvl(self):
+        """
+        Get the trigger level.
+
+        Returns:
+            list[float]:
+                The lower and upper trigger level if the trigger mode is set to "Transition mode" or
+                the trigger level if the trigger mode is set to "Edge triggering" or "Pulse Width triggering"
+        """
+        if self.osc.trigger_mode == 'TRAN':
+            trig_lvl = [self._trig_lvl_low, self._trig_lvl_high]
+        else:
+            trig_lvl = [self._trig_lvl]
+        return trig_lvl
+
+    @trig_lvl.setter
+    def trig_lvl(self, trig_lvl):
+        """
+        Set the trigger level.
+
+        Args:
+            trig_lvl (list[float]):
+                The lower and upper trigger level if the trigger mode is set to "Transition mode" or
+                the trigger level if the trigger mode is set to "Edge triggering" or "Pulse Width triggering"
+        """
+        if self.osc.trigger_mode == 'TRAN':
+            self._trig_lvl_low = min(trig_lvl)
+            self._trig_lvl_high = max(trig_lvl)
+        else:
+            self._trig_lvl = trig_lvl[0]
+
     def get_signal(self):
         """Get the signal of the channel."""
         return self.osc.get_signal("CHAN{}".format(self.channel_index))
@@ -706,8 +1054,8 @@ class Channel:
         center_freq = self.osc.math_fft_center_freq
         span_freq = self.osc.math_fft_span_freq
         sample_size = self.osc.waveform_points
-        frequency_vector = np.linspace(-span_freq/2+center_freq,
-                                       center_freq+span_freq/2, sample_size)
+        frequency_vector = np.linspace(-span_freq / 2 + center_freq,
+                                       center_freq + span_freq / 2, sample_size)
         return frequency_vector
 
     def get_fft(self):
