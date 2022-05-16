@@ -46,19 +46,23 @@ class Oscilloscope:
         # find the resource or set it to None, if the instr_id is not in the list
         self._resource_manager = vi.ResourceManager()
         resource_list = self._resource_manager.list_resources()
-        visa_name = next((item for item in resource_list if item == resource or item.split('::')[3] == resource), None)
+        visa_name = next((item for item in resource_list
+                          if item == resource or ('USB' in item and item.split('::')[3]) == resource), None)
 
         if visa_name is not None:
             self._instrument = self._resource_manager.open_resource(visa_name)
         else:
             connected = False
             for res_num in range(len(resource_list)):
-                try:
-                    self._instrument = self._resource_manager.open_resource(resource_list[res_num])
-                    connected = True
-                    break
-                except vi.errors.VisaIOError:
-                    pass
+                parts = resource_list[res_num].split('::')
+                # Keysight manufacturer ID: 10893, Keysight model code for DSOX1102A: 6023
+                if len(parts) > 3 and 'USB' in parts[0] and parts[1] == '10893' and parts[2] == '6023':
+                    try:
+                        self._instrument = self._resource_manager.open_resource(resource_list[res_num])
+                        connected = True
+                        break
+                    except vi.errors.VisaIOError:
+                        pass
             if not connected:
                 raise RuntimeError("No visa device connected")
 
@@ -368,7 +372,7 @@ class Oscilloscope:
         return float(self._query(':ACQuire:SRATe?').strip())
 
     @property
-    def trigger_mode(self):
+    def trig_mode(self):
         """
         Get the current trigger mode.
 
@@ -379,8 +383,8 @@ class Oscilloscope:
         """
         return self._query(':TRIGger:MODE?').strip()
 
-    @trigger_mode.setter
-    def trigger_mode(self, trigger_mode):
+    @trig_mode.setter
+    def trig_mode(self, trigger_mode):
         """
         Set the current trigger mode.
 
@@ -1012,7 +1016,7 @@ class Channel:
                 The lower and upper trigger level if the trigger mode is set to "Transition mode" or
                 the trigger level if the trigger mode is set to "Edge triggering" or "Pulse Width triggering"
         """
-        if self.osc.trigger_mode == 'TRAN':
+        if self.osc.trig_mode == 'TRAN':
             trig_lvl = [self._trig_lvl_low, self._trig_lvl_high]
         else:
             trig_lvl = [self._trig_lvl]
@@ -1028,7 +1032,7 @@ class Channel:
                 The lower and upper trigger level if the trigger mode is set to "Transition mode" or
                 the trigger level if the trigger mode is set to "Edge triggering" or "Pulse Width triggering"
         """
-        if self.osc.trigger_mode == 'TRAN':
+        if self.osc.trig_mode == 'TRAN':
             self._trig_lvl_low = min(trig_lvl)
             self._trig_lvl_high = max(trig_lvl)
         else:
