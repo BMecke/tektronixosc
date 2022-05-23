@@ -1038,6 +1038,50 @@ class Channel:
         else:
             self._trig_lvl = trig_lvl[0]
 
+    @property
+    def offset(self):
+        """
+        Get the vertical channel offset.
+
+        Returns:
+            float:
+                The current offset value for the selected channel.
+        """
+        return self._query(':CHANnel{}:OFFSet?'.format(self.channel_index)).replace("\n", "")
+
+    @offset.setter
+    def offset(self, offset):
+        """
+        Set the vertical channel offset.
+
+        Args:
+            offset (float):
+                The current offset value for the selected channel.
+        """
+        self._write(':CHANnel{}:OFFSet {}'.format(self.channel_index, offset))
+
+    @property
+    def display(self):
+        """
+        Get  the current display setting for the specified channel (ON=1, OFF=0)
+
+        Returns:
+            int:
+                1 if the channel is activated or 0 when not.
+        """
+        return self._query(':CHANnel{}:DISPlay?'.format(self.channel_index)).replace("\n", "")
+
+    @display.setter
+    def display(self, value):
+        """
+        Turn the display of the specified channel on or off
+        Args:
+            value (int):
+                1 (ON) or 0 (OFF)
+        """
+        self._write(':CHANnel{}:DISPlay {}'.format(self.channel_index, value))
+
+
     def get_signal(self):
         """Get the signal of the channel."""
         return self.osc.get_signal("CHAN{}".format(self.channel_index))
