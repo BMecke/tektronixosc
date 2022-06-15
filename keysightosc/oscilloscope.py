@@ -30,6 +30,21 @@ def get_device_id(resource):
         return None
 
 
+def list_connected_keysight_oscilloscopes():
+    """List all connected oscilloscopes from keysight technologies."""
+    resource_list = list_connected_devices()
+    device_list = []
+    for res_num in range(len(resource_list)):
+        parts = resource_list[res_num].split('::')
+        # Keysight manufacturer ID: 10893, Keysight model code for DSOX1102A: 6023
+        if len(parts) > 3 and 'USB' in parts[0] and parts[1] == '10893' and parts[2] == '6023':
+            device = get_device_id(resource_list[res_num])
+            if device is not None:
+                device_list.append(device)
+
+    return device_list
+
+
 class Oscilloscope:
     """Interface for a Keysight digital storage oscilloscope."""
 
@@ -1080,7 +1095,6 @@ class Channel:
                 1 (ON) or 0 (OFF)
         """
         self._write(':CHANnel{}:DISPlay {}'.format(self.channel_index, value))
-
 
     def get_signal(self):
         """Get the signal of the channel."""
