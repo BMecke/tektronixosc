@@ -61,8 +61,9 @@ class Oscilloscope:
         # find the resource or set it to None, if the instr_id is not in the list
         self._resource_manager = vi.ResourceManager()
         resource_list = self._resource_manager.list_resources()
-        visa_name = next((item for item in resource_list
-                          if item == resource or ('USB' in item and item.split('::')[3]) == resource), None)
+        # Keysight manufacturer id: 10893
+        visa_name = next((item for item in resource_list if item == resource or
+                          ('USB' in item and item.split('::')[3] == resource and item.split('::')[1] == '10893')), None)
 
         if visa_name is not None:
             self._instrument = self._resource_manager.open_resource(visa_name)
@@ -79,7 +80,7 @@ class Oscilloscope:
                     except vi.errors.VisaIOError:
                         pass
             if not connected:
-                raise RuntimeError("No visa device connected")
+                raise RuntimeError("Could not find any keysight devices")
 
         # Clear device to prevent "Query INTERRUPTED" errors when the device was plugged off before
         self._clear()
