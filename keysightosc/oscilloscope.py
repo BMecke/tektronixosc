@@ -1,6 +1,7 @@
 import pyvisa as vi
 import numpy as np
 
+busy_resources = {}
 
 def list_connected_devices():
     """List all connected VISA device addresses."""
@@ -20,11 +21,16 @@ def get_device_id(resource):
         dict[str, str]: The 'Manufacturer', 'Model' and 'Serial Number'.
     """
     try:
-        rm = vi.ResourceManager()
-        device = rm.open_resource(resource)
-        idn = device.query('*IDN?')
-        parts = idn.split(',')
-        return {'Manufacturer': parts[0], 'Model': parts[1], 'Serial Number': parts[2]}
+        if resource not in busy_resources:
+            rm = vi.ResourceManager()
+            device = rm.open_resource(resource)
+            idn = device.query('*IDN?')
+            parts = idn.split(',')
+            resource_info = {'Manufacturer': parts[0], 'Model': parts[1], 'Serial Number': parts[2]}
+            busy_resources[resource] = resource_info
+            return resource_info
+        else:
+            return busy_resources[resource]
 
     except (vi.errors.VisaIOError, ValueError):
         return None
@@ -33,6 +39,13 @@ def get_device_id(resource):
 def list_connected_keysight_oscilloscopes():
     """List all connected oscilloscopes from keysight technologies."""
     resource_list = list_connected_devices()
+    wrong_keys = []
+    for key in busy_resources:
+        if key not in resource_list:
+            wrong_keys.append(key)
+    for wrong_key in wrong_keys:
+        busy_resources.pop(wrong_key, None)
+
     device_list = []
     for res_num in range(len(resource_list)):
         parts = resource_list[res_num].split('::')
@@ -65,8 +78,10 @@ class Oscilloscope:
         visa_name = next((item for item in resource_list if item == resource or
                           ('USB' in item and item.split('::')[3] == resource and item.split('::')[1] == '10893')), None)
 
+        connected_resource = None
         if visa_name is not None:
             self._instrument = self._resource_manager.open_resource(visa_name)
+            connected_resource = visa_name
         else:
             connected = False
             for res_num in range(len(resource_list)):
@@ -76,11 +91,18 @@ class Oscilloscope:
                     try:
                         self._instrument = self._resource_manager.open_resource(resource_list[res_num])
                         connected = True
+                        connected_resource = resource_list[res_num]
                         break
                     except vi.errors.VisaIOError:
                         pass
             if not connected:
                 raise RuntimeError("Could not find any keysight devices")
+
+        if connected_resource is not None:
+            idn = self._instrument.query('*IDN?')
+            parts = idn.split(',')
+            resource_info = {'Manufacturer': parts[0], 'Model': parts[1], 'Serial Number': parts[2]}
+            busy_resources[connected_resource] = resource_info
 
         # Clear device to prevent "Query INTERRUPTED" errors when the device was plugged off before
         self._clear()
