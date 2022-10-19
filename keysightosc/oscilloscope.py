@@ -50,7 +50,8 @@ def list_connected_keysight_oscilloscopes():
     for res_num in range(len(resource_list)):
         parts = resource_list[res_num].split('::')
         # Keysight manufacturer ID: 10893, Keysight model code for DSOX1102A: 6023
-        if len(parts) > 3 and 'USB' in parts[0] and parts[1] == '10893' and parts[2] == '6023':
+        if len(parts) > 3 and 'USB' in parts[0] and (parts[1] == '10893' or parts[1] == '0x2A8D') and \
+                (parts[2] == '6023' or parts[2] == '0x1787'):
             device = get_device_id(resource_list[res_num])
             if device is not None:
                 device_list.append(device)
@@ -87,7 +88,8 @@ class Oscilloscope:
             for res_num in range(len(resource_list)):
                 parts = resource_list[res_num].split('::')
                 # Keysight manufacturer ID: 10893, Keysight model code for DSOX1102A: 6023
-                if len(parts) > 3 and 'USB' in parts[0] and parts[1] == '10893' and parts[2] == '6023':
+                if len(parts) > 3 and 'USB' in parts[0] and (parts[1] == '10893' or parts[1] == '0x2A8D') and \
+                        (parts[2] == '6023' or parts[2] == '0x1787'):
                     try:
                         self._instrument = self._resource_manager.open_resource(resource_list[res_num])
                         connected = True
