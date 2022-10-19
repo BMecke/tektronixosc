@@ -77,7 +77,8 @@ class Oscilloscope:
         resource_list = self._resource_manager.list_resources()
         # Keysight manufacturer id: 10893
         visa_name = next((item for item in resource_list if item == resource or
-                          ('USB' in item and item.split('::')[3] == resource and item.split('::')[1] == '10893')), None)
+                          ('USB' in item and item.split('::')[3] == resource and
+                           (item.split('::')[1] == '10893' or item.split('::')[1] == '10x2A8D'))), None)
 
         connected_resource = None
         if visa_name is not None:
