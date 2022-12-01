@@ -9,9 +9,13 @@ This project follows the guidelines of `Keep a changelog`_ and adheres to
 .. _Semantic versioning: https://semver.org/
 
 
-[Unreleased]
-============
+`0.1.0`_ - 2022-12-01
+=====================
 
 Added
 -----
-* Initial implementation (preview).
+* First preview release.
+
+
+.. _Unreleased: https://github.com/emtpb/keysightosc
+.. _0.1.0: https://github.com/emtpb/keysightosc/releases/tag/0.1.0
