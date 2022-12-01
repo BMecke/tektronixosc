@@ -20,7 +20,7 @@ setup(
     author='Leander Claes',
     author_email='claes@emt.uni-paderborn.de',
     url='https://emt.uni-paderborn.de/',
-    license='Proprietary',
+    license='BSD',
 
     # Automatically generate version number from git tags
     use_scm_version=True,
