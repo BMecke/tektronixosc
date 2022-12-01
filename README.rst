@@ -8,4 +8,4 @@ Interface for Keysight Oscilloscopes.
 Features
 ========
 
-* TODO
+* Basic support for model DSOX1102A
