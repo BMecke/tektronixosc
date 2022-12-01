@@ -18,4 +18,6 @@ Development Lead
 Contributors
 ============
 
+* Kevin Koch
 * Bruno Mecke
+* Hanna Schmiegel
