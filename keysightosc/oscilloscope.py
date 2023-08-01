@@ -1,7 +1,7 @@
 import pyvisa as vi
-import numpy as np
 
 busy_resources = {}
+
 
 def list_connected_devices():
     """List all connected VISA device addresses."""
@@ -36,8 +36,8 @@ def get_device_id(resource):
         return None
 
 
-def list_connected_keysight_oscilloscopes():
-    """List all connected oscilloscopes from keysight technologies."""
+def list_connected_tektronix_oscilloscopes():
+    """List all connected oscilloscopes from tektronix technologies."""
     resource_list = list_connected_devices()
     wrong_keys = []
     for key in busy_resources:
@@ -49,9 +49,9 @@ def list_connected_keysight_oscilloscopes():
     device_list = []
     for res_num in range(len(resource_list)):
         parts = resource_list[res_num].split('::')
-        # Keysight manufacturer ID: 10893, Keysight model code for DSOX1102A: 6023
-        if len(parts) > 3 and 'USB' in parts[0] and (parts[1] == '10893' or parts[1] == '0x2A8D') and \
-                (parts[2] == '6023' or parts[2] == '0x1787'):
+        # Tektronix manufacturer ID: 1689, Tektronix model code for TBS1072C: 964
+        if len(parts) > 3 and 'USB' in parts[0] and (parts[1] == '1689' or parts[1] == '0x699') and \
+                (parts[2] == '964' or parts[2] == '0x3C4'):
             device = get_device_id(resource_list[res_num])
             if device is not None:
                 device_list.append(device)
@@ -60,7 +60,7 @@ def list_connected_keysight_oscilloscopes():
 
 
 class Oscilloscope:
-    """Interface for a Keysight digital storage oscilloscope."""
+    """Interface for a tektronix digital storage oscilloscope."""
 
     def __init__(self, resource=None):
         """Class constructor. Open the connection to the instrument using the
@@ -75,10 +75,10 @@ class Oscilloscope:
         # find the resource or set it to None, if the instr_id is not in the list
         self._resource_manager = vi.ResourceManager()
         resource_list = self._resource_manager.list_resources()
-        # Keysight manufacturer id: 10893
+        # Tektronix manufacturer id: 1689
         visa_name = next((item for item in resource_list if item == resource or
                           ('USB' in item and item.split('::')[3] == resource and
-                           (item.split('::')[1] == '10893' or item.split('::')[1] == '0x2A8D'))), None)
+                           (item.split('::')[1] == '1689' or item.split('::')[1] == '0x699'))), None)
 
         connected_resource = None
         if visa_name is not None:
@@ -88,9 +88,9 @@ class Oscilloscope:
             connected = False
             for res_num in range(len(resource_list)):
                 parts = resource_list[res_num].split('::')
-                # Keysight manufacturer ID: 10893, Keysight model code for DSOX1102A: 6023
-                if len(parts) > 3 and 'USB' in parts[0] and (parts[1] == '10893' or parts[1] == '0x2A8D') and \
-                        (parts[2] == '6023' or parts[2] == '0x1787'):
+                # Tektronix manufacturer ID: 1689, Tektronix model code for TBS1072C: 964
+                if len(parts) > 3 and 'USB' in parts[0] and (parts[1] == '1689' or parts[1] == '0x699') and \
+                        (parts[2] == '964' or parts[2] == '0x3C4'):
                     try:
                         self._instrument = self._resource_manager.open_resource(resource_list[res_num])
                         connected = True
@@ -99,7 +99,7 @@ class Oscilloscope:
                     except vi.errors.VisaIOError:
                         pass
             if not connected:
-                raise RuntimeError("Could not find any keysight devices")
+                raise RuntimeError("Could not find any tektronix devices")
 
         if connected_resource is not None:
             idn = self._instrument.query('*IDN?')
@@ -118,31 +118,47 @@ class Oscilloscope:
 
         self.channels = [Channel(self, 1), Channel(self, 2)]
 
+        self._enable_header_in_response = False
+        # To transfer waveforms from the instrument to an external controller, follow these steps:
+        #    1. Use the DATa:SOUrce command to select the waveform source.
+        #    2. Use the DATa:ENCdg command to specify the waveform data format.
+        #    3. Use the DATa:WIDth command to specify the number of bytes per data point.
+        #    4. Use the DATa:STARt and DATa:STOP commands to specify the part of the waveform that you want to transfer.
+        #    5. ...
+        self._waveform_encoding = 'BINARY'
+        self._binary_data_format = 'SIGNED'
+        self._data_width = 1
+        # Setting DATa:STARt to 1 and DATa:STOP to 2500 always sends the entire waveform,
+        # regardless of the acquisition mode.
+        self._data_start = 1
+        self._data_stop = 2500
+
+    # https://stackoverflow.com/questions/20766813/how-to-convert-signed-to-unsigned-integer-in-python
+    @staticmethod
+    def _unsigned_to_signed(n, byte_count):
+        return int.from_bytes(n.to_bytes(byte_count, 'little', signed=False), 'little', signed=True)
+
     def _clear(self):
         """
-        Clears the status and the error queue.
+        Clears the status byte and standard event status register and the event queue.
 
-        The *CLS common command clears the status data structures, the device-defined error queue,
-        and the Request-for-OPC flag.
+        Command only, no query form. The *CLS command clears the following instrument status data structures:
+        • The Event Queue
+        • The Standard Event Status Register (SESR)
+        • The Status Byte Register (except the MAV bit)
         """
         self._instrument.write('*CLS')
 
     def _err_check(self):
-        """Check if instrument for error."""
-        answer = self._instrument.query(":SYSTem:ERRor?")
-        if not answer.startswith('+0,'):
-            raise RuntimeError('Instrument error: {}.'.format(answer.split('"')[1]))
+        """
+        Check if instrument for error.
 
-    def _write(self, message):
-        """Write a message to the visa interface and check for errors."""
-        self._instrument.write(message)
-        self._err_check()
-
-    def _query(self, message):
-        """Send a query to the visa interface and check for errors."""
-        answer = self._instrument.query(message)
-        self._err_check()
-        return answer
+        Raise an RuntimeError if an error is detected.
+        """
+        answer = self._instrument.query("*ESR?")
+        answer = int(answer.removesuffix('\n'))
+        if answer != 0:
+            raise RuntimeError('Instrument error: Standard Event Status Register code = {0:b}'.format(answer))
 
     def _query_binary(self, message):
         """Send a query for binary values."""
@@ -150,28 +166,332 @@ class Oscilloscope:
         self._err_check()
         return answer
 
-    def _acquire_points(self):
-        """
-        Get the number of data points that the hardware will acquire from the input signal.
+    def write(self, message):
+        """Write a message to the visa interface and check for errors."""
+        self._instrument.write(message)
+        self._err_check()
 
-        The number of points acquired is not directly controllable. To set the number of points
-        to be transferred from the oscilloscope, use the command :WAVeform:POINts.
-        The :WAVeform:POINts? query will return the number of points available to be transferred from the oscilloscope.
+    def query(self, message):
+        """Send a query to the visa interface and check for errors."""
+        answer = self._instrument.query(message)
+        answer = answer.removesuffix('\n')
+        self._err_check()
+        return answer
+
+    def single(self):
+        """Arm for single shot acquisition."""
+        self.write('ACQuire:STOPAfter SEQuence')
+
+    def continuous(self):
+        """Arm for continuous data acquisition."""
+        self.write('ACQuire:STOPAfter RUNSTop')
+
+    def stop(self):
+        """Stop acquisition."""
+        self.write('ACQuire:STATE STOP')
+
+    def reset(self):
+        """Reset the instrument to standard settings.
+
+        Note: Scope standard setting is 10:1 for probe attenuation. Because
+              this seems unintuitive, in addition to the reset, the probe
+              attenuation is set to 1:1.
+        """
+        self.write('*RST')
+        self.channels[0].attenuation = 1
+        self.channels[1].attenuation = 1
+
+    def run(self):
+        """
+        Start data acquisition.
+
+        When State is set to ON or RUN, a new acquisition is started. If the last acquisition was a single acquisition
+        sequence, a new single sequence acquisition is started. If the last acquisition was continuous, a new continuous
+        acquisition is started.
+        If RUN is issued in the middle of completing a single sequence acquisition
+        (for example, averaging or enveloping), the acquisition sequence is restarted,
+        and any accumulated data is discarded. Also, the instrument resets the number of acquisitions.
+        If the RUN argument is issued while in continuous mode, acquisition continues.
+        """
+        self.write('ACQuire:STATE RUN')
+
+    def autoset(self):
+        """
+        Causes the instrument to adjust its vertical, horizontal, and trigger controls to display a stable waveform.
+        This command is equivalent to pushing the front-panel AUTOSET button. For a detailed description of the Autoset
+        function, refer to the user manual for your instrument. Command only, no query form.
+
+        """
+        self.write('AUTOSet EXECute')
+
+    def get_signal(self, source=None):
+        """
+        Get the measured signal.
+
+        To transfer waveforms from the instrument to an external controller, follow these steps:
+        (Step 2-4 already done in the init function)
+            1. Use the DATa:SOUrce command to select the waveform source.
+            2. Use the DATa:ENCdg command to specify the waveform data format.
+            3. Use the DATa:WIDth command to specify the number of bytes per data point.
+            4. Use the DATa:STARt and DATa:STOP commands to specify the part of the waveform that you want to transfer.
+            5. Use the WFMPre? command to transfer waveform preamble information.
+            6. Use the CURVe command to transfer waveform data.
+
+        Args:
+            source: Source for the waveform data ('CH1', 'CH2', 'MATH', 'REF1', 'REF2').
+                    If set to None the current selected waveform_source is retrieved as signal source.
+        """
+        if source:
+            self.data_source = source
+
+        # This command is equivalent to sending both 'WFMOutpre?' and 'CURVe?', with the additional provision that the
+        # response to WAVFrm? is guaranteed to provide a synchronized preamble and curve.
+
+        self._enable_header_in_response = True
+        self._instrument.write('WAVFrm?')
+        data = self._instrument.read_raw()
+        self._enable_header_in_response = False
+
+        # Separate 'WFMOutpre?' and 'CURVe?' command
+        # 'CURVe?' response format: #<x><yyy><data><newline>,
+        # where: <x> is the number of y bytes. For example, if <yyy>=500, then <x>=3.
+        curve_start_index = data.find(b'#')
+        number_of_bytes = int(chr(data[curve_start_index + 1]))
+        curve_length = int(data[curve_start_index + 2: curve_start_index + 2 + number_of_bytes])
+        curve_data_start_index = curve_start_index + 2 + number_of_bytes
+
+        header = data[:curve_start_index].decode().split(';')
+        print(header)
+        y_values = list(data[curve_data_start_index:-1])
+
+        y_values = [self._unsigned_to_signed(value, 1) for value in y_values]
+        if len(y_values) != curve_length:
+            raise RuntimeError('Error while getting the curve data')
+
+        x_increment = next((s for s in header if 'XINCR' in s), None)
+        x_zero = next((s for s in header if 'XZERO' in s), None)
+        if not (x_increment or x_zero):
+            raise RuntimeError('Error while getting XINCR, XZERO or XOFF')
+        x_increment = float(x_increment.split(' ')[1])
+        x_zero = float(x_zero.split(' ')[1])
+        x_values = [x_zero + index * x_increment for index in range(curve_length)]
+
+        y_increment = next((s for s in header if 'YMULT' in s), None)
+        y_zero = next((s for s in header if 'YZERO' in s), None)
+        y_off = next((s for s in header if 'YOFF' in s), None)
+        if not (y_increment or y_zero or y_off):
+            raise RuntimeError('Error while getting YMULT, YZERO or YOFF')
+        y_increment = float(y_increment.split(' ')[1])
+        y_zero = float(y_zero.split(' ')[1])
+        y_off = float(y_off.split(' ')[1])
+        y_values = [((y_point - y_off) * y_increment) + y_zero for y_point in y_values]
+
+        return x_values, y_values
+
+    @property
+    def _enable_header_in_response(self):
+        """
+        Queries the Response Header Enable State that causes the to either include or omit headers on query
+        responses. This command does not affect IEEE Std 488.2-1987 Common Commands (those starting with an asterisk);
+        they never return headers.
+
+        If header is on, the instrument returns command headers as part of the query and formats the query response as
+        a valid set command.
+        When header is off, the instrument sends back only the values in the response. This format can make it easier to
+        parse and extract the information from the response.
 
         Returns:
-             int: Number of data points
+            bool: True, if the response header is enabled, false if the response header is disabled.
         """
-        return int(self._query(':ACQuire:POINts?').strip())
+        state = self.query('HEADer?')
+        if state == '1':
+            return True
+        else:
+            return False
+
+    @_enable_header_in_response.setter
+    def _enable_header_in_response(self, state):
+        """
+        Sets the Response Header Enable State that causes the to either include or omit headers on query
+        responses. This command does not affect IEEE Std 488.2-1987 Common Commands (those starting with an asterisk);
+        they never return headers.
+
+        If header is on, the instrument returns command headers as part of the query and formats the query response as
+        a valid set command.
+        When header is off, the instrument sends back only the values in the response. This format can make it easier to
+        parse and extract the information from the response.
+
+        Args:
+            state (bool): True, if the response header is enabled, false if the response header is disabled.
+        """
+        if state:
+            self.write('HEADer ON')
+        else:
+            self.write('HEADer OFF')
+
+    @property
+    def _waveform_encoding(self):
+        """
+        Queries the type of encoding for outgoing waveform.
+
+        Returns:
+            str: The type of encoding for outgoing waveforms ('ASCII', 'BINARY').
+
+                ASCii specifies that the outgoing data is to be in ASCII format.
+                Waveforms will be sent as <NR1> numbers.
+
+                BINary specifies that outgoing data is to be in a binary format whose further specification is
+                determined by 'WFMOutpre:BYT_Nr', 'WFMOutpre:BIT_Nr', 'WFMOutpre:BN_Fmt' and 'WFMInpre:FILTERFreq'.
+        """
+        return self.query('WFMOutpre:ENCdg?').upper()
+
+    @_waveform_encoding.setter
+    def _waveform_encoding(self, encoding):
+        """
+         Sets the type of encoding for outgoing waveform.
+
+         Args:
+             encoding(str): The type of encoding for outgoing waveforms ('ASCII', 'BINARY').
+
+                ASCii specifies that the outgoing data is to be in ASCII format.
+                Waveforms will be sent as <NR1> numbers.
+
+                BINary specifies that outgoing data is to be in a binary format whose further specification is
+                determined by 'WFMOutpre:BYT_Nr', 'WFMOutpre:BIT_Nr', 'WFMOutpre:BN_Fmt' and 'WFMInpre:FILTERFreq'.
+         """
+        if encoding == 'ASCII' or encoding == 'ASCii':
+            self.write('WFMOutpre:ENCdg ASCii')
+        elif encoding == 'BINARY' or encoding == 'BINary':
+            self.write('WFMOutpre:ENCdg BINary')
+
+    @property
+    def _data_start(self):
+        """
+        Queries the starting data point for incoming or outgoing waveform transfer.
+        This command lets you transfer partial waveforms to and from the instrument.
+
+        Returns:
+            int: The first data point that will be transferred, which ranges from 1 to the record length
+        """
+        return int(self.query('DATa:STARt?'))
+
+    @_data_start.setter
+    def _data_start(self, nr1):
+        """
+         Sets  the starting data point for incoming or outgoing waveform transfer.
+         This command lets you transfer partial waveforms to and from the instrument.
+
+         Args:
+             nr1 (int): The first data point that will be transferred, which ranges from 1 to the record length.
+         """
+        self.write('DATa:STARt {}'.format(str(nr1)))
+
+    @property
+    def _data_stop(self):
+        """
+        Sets or queries the last data point in the waveform that will be transferred when using the CURVe? query.
+        This lets you transfer partial waveforms from the instrument Changes to the record length value are not
+        automatically reflected in the DATa:STOP value.
+        As record length is varied, the DATa:STOP value must be explicitly changed to ensure the entire record
+        is transmitted. In other words, curve results will not automatically and correctly reflect increases in record
+        length if the distance from DATa:STARt to DATa:STOP stays smaller than the increased record length.
+        When using the CURVe command, the instrument stops reading data when there is no more data to read.
+
+        Returns:
+            int: The last data point that will be transferred, which ranges from 1 to the record length.
+        """
+        return int(self.query('DATa:STOP?'))
+
+    @_data_stop.setter
+    def _data_stop(self, nr1):
+        """
+        Sets or queries the last data point in the waveform that will be transferred when using the CURVe? query.
+        This lets you transfer partial waveforms from the instrument Changes to the record length value are not
+        automatically reflected in the DATa:STOP value.
+        As record length is varied, the DATa:STOP value must be explicitly changed to ensure the entire record
+        is transmitted. In other words, curve results will not automatically and correctly reflect increases in record
+        length if the distance from DATa:STARt to DATa:STOP stays smaller than the increased record length.
+        When using the CURVe command, the instrument stops reading data when there is no more data to read.
+
+        If DATa:WIDth is set to 2, the least significant byte is always zero.
+        This format is useful for AVErage waveforms.
+
+        Args:
+            nr1 (int): The last data point that will be transferred, which ranges from 1 to the record length.
+        """
+        self.write('DATa:STOP {}'.format(str(nr1)))
+
+    @property
+    def _data_width(self):
+        """
+        Queries the number of bytes per data point in the waveform transferred using the CURVe command.
+
+        Changes to the record length value are not automatically reflected in the DATa:STOP value.
+        As record length is varied, the DATa:STOP value must be explicitly changed to ensure the entire record is
+        transmitted. In other words, curve results will not automatically and correctly reflect increases in record
+        length if the distance from DATa:STARt to DATa:STOP stays smaller than the increased record length.
+
+        Returns:
+            int: The number of bytes per waveform data points.
+        """
+        return int(self.query('DATa:WIDth?'))
+
+    @_data_width.setter
+    def _data_width(self, width):
+        """
+        Queries the number of bytes per data point in the waveform transferred using the CURVe command.
+
+        Changes to the record length value are not automatically reflected in the DATa:STOP value.
+        As record length is varied, the DATa:STOP value must be explicitly changed to ensure the entire record is
+        transmitted. In other words, curve results will not automatically and correctly reflect increases in record
+        length if the distance from DATa:STARt to DATa:STOP stays smaller than the increased record length.
+
+        Args:
+            width (int): The number of bytes per waveform data points.
+        """
+        self.write('DATa:WIDth {}'.format(str(width)))
+
+    @property
+    def _binary_data_format(self):
+        """
+        Returns the format of binary data for outgoing waveforms specified by the DATa:SOUrce command.
+        Changing the value of WFMOutpre:BN_Fmt also changes the value of DATa:ENCdg.
+
+        Returns:
+            result (str): The format of binary data for outgoing waveforms ('signed', 'unsigned').
+        """
+        result = self.query('WFMOutpre:BN_Fmt?')
+        if result == 'RI':
+            return 'signed'
+        else:
+            return 'unsigned'
+
+    @_binary_data_format.setter
+    def _binary_data_format(self, format_of_binary_data):
+        """
+        Sets the format of binary data for outgoing waveforms specified by the DATa:SOUrce command.
+        Changing the value of WFMOutpre:BN_Fmt also changes the value of DATa:ENCdg.
+
+        Args:
+            format_of_binary_data (str): The format of binary data for outgoing waveforms ('SIGNED', 'UNSIGNED').
+        """
+        if format_of_binary_data == 'SIGNED' or format_of_binary_data == 'RI':
+            self.write('WFMOutpre:BN_Fmt RI')
+        elif format_of_binary_data == 'UNSIGNED' or format_of_binary_data == 'RP':
+            self.write('WFMOutpre:BN_Fmt RP')
+        else:
+            raise ValueError('\'signed\' and \'unsigned\' are the only allowed values in this function')
 
     @property
     def _identification_number(self):
         """
-        Get the instrument type and software version.
+        The instrument identification code in IEEE 488.2 notation.
 
         Returns:
-            str: The IDN in the following format: <manufacturer_string>,<model>,<serial_number>,<software_revision>
+            str: The IDN in the following format: TEKTRONIX,<model number>,
+                 CF:91.1CT FV:v<instrument firmware version number> TBS 1XXXC:v<module firmware version number>
         """
-        return self._query('*IDN?')
+        return self.query('*IDN?')
 
     @property
     def device_model(self):
@@ -182,6 +502,105 @@ class Oscilloscope:
             str: The device model
         """
         return self._identification_number.split(',')[1]
+
+    @property
+    def max_samplerate(self):
+        """
+        The maximum real-time sample rate, which varies from model to model.
+
+        Returns:
+            int: The maximum real-time sample rate in samples/second.
+
+        """
+        # https://stackoverflow.com/questions/32861429/converting-number-in-scientific-notation-to-int
+        max_samplerate = float(self.query('ACQuire:MAXSamplerate?'))
+        return int(max_samplerate)
+
+    @property
+    def acquisition_mode(self):
+        """
+        Queries the acquisition mode of the instrument for all live waveforms.
+        Waveforms are the displayed data point values taken from acquisition intervals.
+        Each acquisition interval represents a time duration set by the horizontal scale (time per division).
+        The instrument sampling system always samples at the maximum rate,
+        so the acquisition interval may include more than one sample.
+        The acquisition mode, which you set using this ACQuire:MODe command, determines how the final value of the
+        acquisition interval is generated from the many data samples.
+
+
+        Returns:
+            str: The acquisition mode of the instrument for all live waveforms
+                 ('SAMPLE', 'PEAKDETECT', 'HIRES', 'AVERAGE')
+
+                SAMple specifies that the displayed data point value is the first sampled value that was taken
+                during the acquisition interval. The waveform data has 8 bits of precision in all acquisition modes.
+                You can request 16 bit data with a CURVe? query, but the lower-order 8 bits of data will be zero.
+                SAMple is the default mode.
+
+                PEAKdetect specifies the display of the high-low range of the samples taken from a single
+                waveform acquisition.
+                The instrument displays the high-low range as a vertical column that extends from the highest to the
+                lowest value sampled during the acquisition interval.
+                PEAKdetect mode can reveal the presence of aliasing or narrow spikes.
+
+                HIRes specifies Hi Res mode where the displayed data point value is the average of all the samples taken
+                during the acquisition interval. This is a form of averaging, where the average comes from a single
+                waveform acquisition. The number of samples taken during the acquisition interval determines the number
+                of data values that compose the average.
+
+                AVErage specifies averaging mode, in which the resulting waveform shows an average of SAMple data points
+                from several separate waveform acquisitions. The instrument processes the number of waveforms you
+                specify into the acquired waveform, creating a running exponential average of the input signal.
+                The number of waveform acquisitions that go into making up the average waveform is set or queried using
+                the ACQuire:NUMAVg command.
+        """
+        return self.query('ACQuire:MODe?').upper()
+
+    @acquisition_mode.setter
+    def acquisition_mode(self, mode):
+        """
+        Sets the acquisition mode of the instrument for all live waveforms.
+        Waveforms are the displayed data point values taken from acquisition intervals.
+        Each acquisition interval represents a time duration set by the horizontal scale (time per division).
+        The instrument sampling system always samples at the maximum rate,
+        so the acquisition interval may include more than one sample.
+        The acquisition mode, which you set using this ACQuire:MODe command, determines how the final value of the
+        acquisition interval is generated from the many data samples.
+
+        Args:
+            mode (str): The acquisition mode of the instrument for all live waveforms
+                  ('SAMPLE', 'PEAKDETECT', 'HIRES', 'AVERAGE')
+
+                SAMple specifies that the displayed data point value is the first sampled value that was taken
+                during the acquisition interval. The waveform data has 8 bits of precision in all acquisition modes.
+                You can request 16 bit data with a CURVe? query, but the lower-order 8 bits of data will be zero.
+                SAMple is the default mode.
+
+                PEAKdetect specifies the display of the high-low range of the samples taken from a single
+                waveform acquisition.
+                The instrument displays the high-low range as a vertical column that extends from the highest to the
+                lowest value sampled during the acquisition interval.
+                PEAKdetect mode can reveal the presence of aliasing or narrow spikes.
+
+                HIRes specifies Hi Res mode where the displayed data point value is the average of all the samples taken
+                during the acquisition interval. This is a form of averaging, where the average comes from a single
+                waveform acquisition. The number of samples taken during the acquisition interval determines the number
+                of data values that compose the average.
+
+                AVErage specifies averaging mode, in which the resulting waveform shows an average of SAMple data points
+                from several separate waveform acquisitions. The instrument processes the number of waveforms you
+                specify into the acquired waveform, creating a running exponential average of the input signal.
+                The number of waveform acquisitions that go into making up the average waveform is set or queried using
+                the ACQuire:NUMAVg command.
+        """
+        if mode == 'SAMPLE' or mode == 'SAMple':
+            self.write('ACQuire:MODe SAMple')
+        elif mode == 'PEAKDETECT' or mode == 'PEAKdetect':
+            self.write('ACQuire:MODe PEAKdetect')
+        elif mode == 'HIRES' or mode == 'HIRes':
+            self.write('ACQuire:MODe HIRes')
+        elif mode == 'AVERAGE' or mode == 'AVErage':
+            self.write('ACQuire:MODe AVErage')
 
     @property
     def visa_query_delay(self):
@@ -211,672 +630,379 @@ class Oscilloscope:
         """
         self._instrument.timeout = timeout * 1000
 
-    def reset(self):
-        """Reset the instrument to standard settings.
-
-        Note: Scope standard setting is 10:1 for probe attenuation. Because
-              this seems unintuitive, in addition to the reset, the probe
-              attenuation is set to 1:1.
-        """
-        self._write('*RST')
-        self.channels[0].attenuation = 1
-        self.channels[1].attenuation = 1
-
-    def run(self):
-        """Start data acquisition."""
-        self._write(':RUN')
-
-    def single(self):
-        """Arm for single shot acquisition."""
-        self._write(':SINGle')
-
-    def stop(self):
-        """Stop acquisition."""
-        self._write(':STOP')
-
-    def trigger(self):
-        """Manually trigger the instrument."""
-        self._write('*TRG')
-
-    def get_signal_raw(self):
-        """Get the raw data displayed on screen."""
-        data = self._query_binary(':WAVeform:DATA?')
-        return list(data)
-
     @property
-    def x_range(self):
-        """Horizontal range."""
-        return float(self._query(':TIMebase:RANGe?'))
+    def data_source(self):
+        """
+        Queries which waveform will be transferred from the instrument by the CURVe? query.
+        You can transfer only one waveform at a time.
 
-    @x_range.setter
-    def x_range(self, range_):
-        """Set horizontal range.
+        Returns:
+            str: The current data source ('CH1', 'CH2', 'MATH', 'REF1', 'REF2').
+
+                CH1– CH2 specifies which analog channel data will be transferred from the instrument to the controller,
+                channels 1 through 2.
+
+                MATH specifies that the math waveform data will be transferred from the instrument to the controller.
+
+                REF1–REF2 specifies which reference waveform data will be transferred from the instrument to the
+                controller, waveforms, 1 or 2.
+        """
+        return self.query('DATa:SOUrce?').split(' ')[1]
+
+    @data_source.setter
+    def data_source(self, source):
+        """
+        Sets which waveform will be transferred from the instrument by the CURVe? query.
+        You can transfer only one waveform at a time.
 
         Args:
-            range_: Horizontal range in seconds.
+            source (str): The current data source ('CH1', 'CH2', 'MATH', 'REF1', 'REF2').
+
+                CH1– CH2 specifies which analog channel data will be transferred from the instrument to the controller,
+                channels 1 through 2.
+
+                MATH specifies that the math waveform data will be transferred from the instrument to the controller.
+
+                REF1–REF2 specifies which reference waveform data will be transferred from the instrument to the
+                controller, waveforms, 1 or 2.
         """
-        self._write(':TIMebase:RANGe {}'.format(str(range_)))
+        self.write('DATa:SOUrce {}'.format(source))
 
     @property
-    def x_offset(self):
-        """Offset of the time vector."""
-        return float(self._query(':WAVeform:XORigin?'))
+    def number_of_waveform_points(self):
+        """
+        Number of points that will be transmitted in response to a CURVe? query.
+
+        Returns:
+            int: The number of points for the DATa:SOUrce waveform.
+        """
+        return int(self.query('WFMOutpre:NR_Pt?'))
 
     @property
     def x_increment(self):
-        """Increment of the time vector."""
-        return float(self._query(':WAVeform:XINCrement?'))
+        """
+        Increment of the time vector. This value corresponds to the sampling interval.
+
+        Returns:
+            float: The horizontal point spacing in units of WFMOutpre:XUNit for the waveform specified by the
+                   DATa:SOUrce command.
+        """
+        return float(self.query(':WAVeform:XINCrement?'))
 
     @property
-    def y_adc_zero(self):
-        """Zero value of the analog to digital converter."""
-        return int(self._query(':WAVeform:YREFerence?'))
+    def x_unit(self):
+        """
+        The horizontal units for the waveform.
+
+        Returns:
+            str:  The horizontal units for the waveform.
+        """
+        return self.query('WFMOutpre:XUNit?').upper()
 
     @property
-    def y_offset(self):
-        """Offset of the measured voltage."""
-        return float(self._query(':WAVeform:YORigin?'))
+    def x_offset(self):
+        """
+        The time coordinate of the first point in the outgoing waveform. This value is in units of WFMOutpre:XUNit?.
+        The query command will time out and an error will be generated if the waveform specified by DATa:SOUrce
+        is not turned on.
+
+        Returns:
+            float: The time coordinate of the first point in the outgoing waveform.
+        """
+        return float(self.query('WFMOutpre:XZEro?'))
 
     @property
     def y_increment(self):
-        """Increment of the measured voltage."""
-        return float(self._query(':WAVeform:YINCrement?'))
-
-    @property
-    def waveform_source(self):
-        """Selected channel or function."""
-        return self._query(':WAVeform:SOURce?').strip()
-
-    @waveform_source.setter
-    def waveform_source(self, source):
-        """Select the source for the waveform data.
-
-        Args:
-            source: Source for the waveform data (CHAN<n>, FUNC, MATH, FFT,
-                    WMEM<r>, ABUS, EXT).
         """
-        self._write(':WAVeform:SOURce {}'.format(source))
-
-    @property
-    def waveform_points_mode(self):
-        """
-        Get the data record to be transferred with the :WAVeform:DATA? query.
-
-        For the analog sources, there are two different records that can be transferred:
-            • The first is the raw acquisition record. The maximum number of points available
-            in this record is returned by the :ACQuire:POINts? query. The raw acquisition
-            record can only be transferred when the oscilloscope is not running and can
-            only be retrieved from the analog sources.
-
-            • The second is referred to as the measurement record and is a 62,500-point
-            (maximum) representation of the raw acquisition record. The measurement
-            record can be retrieved from any source.
+        The vertical scale factor per digitizing level in units specified by WFMOutpre:YUNit for the waveform specified
+        by the Returns the vertical scale factor per digitizing level in units specified by WFMOutpre:YUNit for the
+        waveform specified by the DATa:SOUrce command. The query command will time out and an error is generated if the
+        waveform specified by DATa:SOUrce is not turned on. command. The query command will time out and an error is
+        generated if the waveform specified by DATa:SOUrce is not turned on.
 
         Returns:
-            str: The points mode ('NORM', 'MAX' or 'RAW').
+            float: The vertical scale for the corresponding waveform.
         """
-        return self._query(':WAVeform:POINts:MODE?')
-
-    @waveform_points_mode.setter
-    def waveform_points_mode(self, mode):
-        """
-        Set the data record to be transferred with the :WAVeform:DATA? query.
-
-        For the analog sources, there are two different records that can be transferred:
-            • The first is the raw acquisition record. The maximum number of points available
-            in this record is returned by the :ACQuire:POINts? query. The raw acquisition
-            record can only be transferred when the oscilloscope is not running and can
-            only be retrieved from the analog sources.
-
-            • The second is referred to as the measurement record and is a 62,500-point
-            (maximum) representation of the raw acquisition record. The measurement
-            record can be retrieved from any source.
-
-        Args:
-            mode: A string specifying the mode ('NORM', 'MAX' or 'RAW').
-        """
-        self._write(':WAVeform:POINts:MODE {}'.format(mode))
+        return float(self.query('WFMOUTPRE:YMULT?'))
 
     @property
-    def waveform_points(self):
-        """Number of points to be transferred in the selected record mode."""
-        return int(self._query(':WAVeform:POINts?').strip())
-
-    @waveform_points.setter
-    def waveform_points(self, num):
-        """Select number of points to be transferred in the selected record
-        mode. If mode is 'MAX' the number of points will be set for the
-        'RAW' mode.
-
-        Args:
-            num (int): The number of points to be transferred.
+    def y_unit(self):
         """
-        if (self.waveform_points_mode == 'RAW\n') or (self.waveform_points_mode == 'MAX\n'):
-            self.stop()
-        if self.waveform_count_max < num:
-            num = self.waveform_count_max
-        self._write(':WAVeform:POINts {}'.format(num))
-
-    @property
-    def waveform_count_max(self):
-        """
-        Get the maximum number of points to be transferred in the selected record mode.
-
-        If the device is set to raw acquisition record, the maximum number of points is returned
-        by the :ACQuire:POINts? query. If the device is set to measurement record, the maximum
-        number of points is 62,500.
+        The  vertical units for the waveform.
 
         Returns:
-            int: Maximum number of waveform points.
+            str:  The  vertical units for the waveform.
         """
+        return self.query(' WFMOutpre:YUNit?')
 
-        if self.waveform_points_mode == 'NORM\n':
-            return 62500
+    @property
+    def y_offset(self):
+        """
+        The vertical offset in units specified by WFMOutpre:YUNit? for the waveform specified by the DATa:SOUrce
+        command. The query command will time out and an error will be generated if the waveform specified by
+        DATa:SOUrce is not turned on.
+
+        Returns:
+            float:  The vertical offset in units.
+        """
+        return float(self.query('WFMOUTPRE:YZERO?'))
+
+    @property
+    def trig_source(self):
+        """
+        Queries the source for the edge trigger. This is equivalent to setting the Source option in the Trigger menu.
+
+        Returns:
+            str: The trigger source ('CH1', 'CH2', 'LINE', 'AUX').
+        """
+        if self.trig_type == 'EDGE':
+            return self.query('TRIGger:A:EDGE:SOUrce?').upper()
+        elif self.trig_pulse_class == 'RUNT':
+            return self.query('TRIGGER:A:RUNT:SOURCE?').upper()
         else:
-            return self._acquire_points()
+            return self.query('TRIGger:A:PULse:SOUrce?').upper()
 
-    @property
-    def timebase_scale(self):
+    @trig_source.setter
+    def trig_source(self, trigger_source):
         """
-        Get the horizontal scale.
-
-        The :TIMebase:SCALe command sets the horizontal scale or units per division for the main window.
-
-        Returns:
-            float: time/div in seconds.
-        """
-        return float(self._query(':TIMebase:SCALe?').strip())
-
-    @timebase_scale.setter
-    def timebase_scale(self, time_per_div_in_s):
-        """
-        Set the horizontal scale.
-
-        The :TIMebase:SCALe command sets the horizontal scale or units per division for the main window.
+        Sets the source for the edge trigger. This is equivalent to setting the Source option in the Trigger menu.
 
         Args:
-            time_per_div_in_s (float): time/div in seconds.
+            trigger_source (str): The trigger source ('CH1', 'CH2', 'LINE', 'AUX').
         """
-        self._write(':TIMebase:SCALe {}'.format(time_per_div_in_s))
+        if self.trig_type == 'EDGE':
+            self.write('TRIGger:A:EDGE:SOUrce {}'.format(trigger_source))
+        elif self.trig_pulse_class == 'RUNT':
+            self.write('TRIGger:A:RUNT:SOUrce {}'.format(trigger_source))
+        else:
+            self.write('TRIGger:A:PULse:SOUrce {}'.format(trigger_source))
+
 
     @property
-    def acquire_sample_rate(self):
+    def trig_type(self):
         """
-        Get the current sample rate.
-
-        The :ACQuire:SRATe? query returns the current oscilloscope acquisition sample rate.
-        The sample rate is not directly controllable.
+        Get the current trigger type.
+        This is equivalent to setting the Type option in the Trigger menu.
 
         Returns:
-            float: the sample rate.
+            str: The trigger type ('EDGE', 'PULSE').
         """
-        return float(self._query(':ACQuire:SRATe?').strip())
+        return self.query('TRIGger:A:TYPe?').upper()
 
-    @property
-    def trig_mode(self):
+    @trig_type.setter
+    def trig_type(self, trigger_type):
         """
-        Get the current trigger mode.
-
-        If the :TIMebase:MODE is ROLL or XY, the query returns "NONE".
-
-        Returns:
-            str: The trigger mode ('EDGE', 'GLIT', 'PATT', 'SHOL', 'TRAN', 'TV' or 'SBUS1').
-        """
-        return self._query(':TRIGger:MODE?').strip()
-
-    @trig_mode.setter
-    def trig_mode(self, trigger_mode):
-        """
-        Set the current trigger mode.
+        Set the current trigger type.
+        This is equivalent to setting the Type option in the Trigger menu.
 
         Args:
-            trigger_mode (str): The trigger mode ('EDGE', 'GLIT', 'PATT', 'SHOL', 'TRAN', 'TV' or 'SBUS1').
+            trigger_type (str): The trigger type ('EDGE', 'PULSE').
         """
-        self._write(':TRIGger:MODE {}'.format(trigger_mode))
-
-    @property
-    def trig_sweep(self):
-        """
-        Get the trigger sweep mode.
-
-        When AUTO sweep mode is selected, a baseline is displayed in the absence of a signal.
-        If a signal is present but the oscilloscope is not triggered, the unsynchronized signal
-        is displayed instead of a baseline. When NORMal sweep mode is selected and no trigger
-        is present, the instrument does not sweep, and the data acquired on the previous trigger
-        remains on the screen.
-
-        Returns:
-            str: The trigger sweep mode ('AUTO' or 'NORM').
-        """
-        return self._query(':TRIGger:SWEep?').strip()
-
-    @trig_sweep.setter
-    def trig_sweep(self, sweep_mode):
-        """
-        Set the trigger sweep mode.
-
-        When AUTO sweep mode is selected, a baseline is displayed in the absence of a signal.
-        If a signal is present but the oscilloscope is not triggered, the unsynchronized signal
-        is displayed instead of a baseline. When NORMal sweep mode is selected and no trigger
-        is present, the instrument does not sweep, and the data acquired on the previous trigger
-        remains on the screen.
-
-        Args:
-            sweep_mode (str): The trigger sweep mode ('AUTO' or 'NORM').
-        """
-        self._write(':TRIGger:SWEep {}'.format(sweep_mode))
+        if trigger_type == 'EDGE' or trigger_type == 'EDGe':
+            self.write('TRIGger:A:TYPe EDGe')
+        elif trigger_type == 'PULSE' or trigger_type == 'PULSe':
+            self.write('TRIGger:A:TYPe PULSe')
 
     @property
     def trig_slope(self):
         """
         Get the slope of the edge for the trigger.
 
-        The :TRIGger:SLOPe command specifies the slope of the edge for the trigger.
-        The SLOPe command is not valid in TV trigger mode. Instead, use :TRIGger:TV:POLarity
-        to set the polarity in TV trigger mode.
+        The slope command specifies the slope of the edge for the trigger.
+        This is equivalent to setting the slope option in the trigger menu.
 
         Returns:
-            str: The trigger slope ('NEG', 'POS', 'EITH', 'ALT').
+            str: The trigger slope ('RISE', 'FALL').
         """
-        return self._query(':TRIGger:SLOPe?').strip()
+        if self.trig_type == 'EDGE':
+            return self.query('TRIGger:A:EDGE:SLOpe?').upper()
+        elif self.trig_pulse_class == 'RUNT':
+            slope = self.query('TRIGger:A:RUNT:POLarity?').upper()
+            if slope == 'NEGATIVE':
+                return 'FALL'
+            else:
+                return 'RISE'
+        else:
+            slope = self.query('TRIGger:A:PULse:WIDth:POLarity?').upper()
+            if slope == 'NEGATIVE':
+                return 'FALL'
+            else:
+                return 'RISE'
 
     @trig_slope.setter
     def trig_slope(self, trig_slope):
         """
         Set the slope of the edge for the trigger.
 
-        The :TRIGger:SLOPe command specifies the slope of the edge for the trigger.
-        The SLOPe command is not valid in TV trigger mode. Instead, use :TRIGger:TV:POLarity
-        to set the polarity in TV trigger mode.
+        The slope command specifies the slope of the edge for the trigger.
+        This is equivalent to setting the slope option in the trigger menu.
 
         Args:
-            trig_slope (str): The trigger slope ('NEG', 'POS', 'EITH', 'ALT').
+            trig_slope (str): The trigger slope ('RISE', 'FALL').
         """
-        self._write(':TRIGger:SLOPe {}'.format(trig_slope))
+        if self.trig_type == 'EDGE':
+            if trig_slope == 'RISE' or trig_slope == 'RISe':
+                self.write('TRIGger:A:EDGE:SLOpe RISe')
+            elif trig_slope == 'FALL':
+                self.write('TRIGger:A:EDGE:SLOpe FALL')
+        elif self.trig_pulse_class == 'RUNT':
+            if trig_slope == 'RISE' or trig_slope == 'RISe':
+                self.write('TRIGger:A:RUNT:POLarity POSitive')
+            elif trig_slope == 'FALL':
+                self.write('TRIGger:A:RUNT:POLarity NEGative')
+        else:
+            if trig_slope == 'RISE' or trig_slope == 'RISe':
+                self.write('TRIGger:A:PULse:WIDth:POLarity POSitive')
+            elif trig_slope == 'FALL':
+                self.write('TRIGger:A:PULse:WIDth:POLarity NEGative')
+
+    @property
+    def trig_pulse_class(self):
+        """
+        Queries the type of pulse on which to trigger
+
+        Returns:
+            str: The pulse trigger class ('RUNT', 'WIDTH').
+
+                RUNT triggers when a pulse crosses the first preset voltage threshold but does not cross the second
+                preset threshold before recrossing the first.
+
+                WIDTH triggers when a pulse is found that has the specified polarity and is either inside or outside
+                the specified time limits.
+        """
+        return self.query('TRIGger:A:PULse:CLAss?').upper()
+
+    @trig_pulse_class.setter
+    def trig_pulse_class(self, trigger_pulse_class):
+        """
+        Queries the type of pulse on which to trigger
+
+        Args:
+            trigger_pulse_class (str): The pulse trigger class ('RUNT', 'WIDTH').
+
+                RUNT triggers when a pulse crosses the first preset voltage threshold but does not cross the second
+                preset threshold before recrossing the first.
+
+                WIDTH triggers when a pulse is found that has the specified polarity and is either inside or outside
+                the specified time limits.
+        """
+        if trigger_pulse_class == 'RUNT' or trigger_pulse_class == 'RUNt':
+            self.write('TRIGGER:A:PULSE:CLASS RUNt')
+        elif trigger_pulse_class == 'WIDTH' or trigger_pulse_class == 'WIDth':
+            self.write('TRIGGER:A:PULSE:CLASS WIDth')
+
+    @property
+    def trigger_time_width(self):
+        """
+        Queries the width for a runt trigger.
+
+        Returns:
+            float:  The width for a runt trigger.
+        """
+        return float(self.query('TRIGger:A:RUNT:WIDth?'))
+
+    @trigger_time_width.setter
+    def trigger_time_width(self, time):
+        """
+        Sets the width for a runt trigger.
+
+        Args:
+            time (float):  The width for a runt trigger.
+        """
+        self.write('TRIGger:A:RUNT:WIDth {}'.format(str(time)))
+
 
     @property
     def fft_ordinate_unit(self):
         """Selected unit for the ordinate of the FFT operation."""
-        return self._query(':FFT:VTYPe?').strip()
+        return self.query('FFT:VType?').upper()
 
     @fft_ordinate_unit.setter
     def fft_ordinate_unit(self, fft_unit):
         """Select the vertical unit for the FFT operations.
 
         Args:
-            fft_unit: Current FFT vertical unit ('DEC' or 'VRMS').
+            fft_unit: Current FFT vertical unit ('DB or 'LINEAR').
         """
-        self._write(':FFT:VTYPe {}'.format(fft_unit))
+        if fft_unit == 'LINEAR' or fft_unit == 'LINEAr':
+            self.write('FFT:VType LINEAr')
+        else:
+            self.write('FFT:VType DB')
 
     @property
     def fft_window(self):
         """Selected FFT window."""
-        return self._query(':FFT:WINDow?').strip()
+        return self.query('FFT:WINdow?').upper()
 
     @fft_window.setter
     def fft_window(self, window):
         """Select FFT window.
 
         Args:
-            window: Window for the FFT ('RECT', 'HANN', 'FLAT' or 'BHAR').
+            window: Window for the FFT ('HAMMING' 'HANNING' 'RECTANGULAR', 'BLACKMANHARRIS').
         """
-        self._write(':FFT:WINDow {}'.format(window))
+        if window.upper() == 'HAMMING':
+            self.write('FFT:WINdow HAMming')
+        elif window.upper() == 'HANNING':
+            self.write('FFT:WINdow HANning')
+        elif window.upper() == 'RECTANGULAR':
+            self.write('FFT:WINdow RECTangular')
+        elif window.upper() == 'BLACKMANHARRIS':
+            self.write('FFT:WINdow BLAckmanharris')
 
     @property
-    def fft_center_freq(self):
-        """Get the center frequency of the FFT."""
-        return float(self._query(":FFT:CENTer?").strip())
-
-    @fft_center_freq.setter
-    def fft_center_freq(self, frequency):
-        """Set the center frequency of the FFT in Hz.
-
-        Args:
-            frequency (int): Center frequency of the FFT in Hz.
+    def fft_horizontal_scale(self):
         """
-        self._write(":FFT:CENTer {}".format(frequency))
+        Queries the horizontal scale of the FFT waveform in Hz.
 
-    @property
-    def fft_span_freq(self):
-        """Get the frequency span of the FFT in Hz. """
-        return float(self._query(":FFT:SPAN?").strip())
-
-    @fft_span_freq.setter
-    def fft_span_freq(self, frequency):
-        """Set the frequency span of the FFT in Hz.
-
-        Args:
-            frequency (int): Span frequency of the FFT in Hz.
+        Returns:
+            float: The horizontal scale of the FFT waveform.
         """
-        self._write(":FFT:SPAN {}".format(frequency))
+        return float(self.query("FFT:HORizontal:SCAle?"))
 
-    @property
-    def fft_offset(self):
-        """Get the offset of the FFT in dBV or in V depending on the
-        current fft_ordinate_unit."""
-        return float(self._query(":FFT:OFFSet?").strip())
-
-    @fft_offset.setter
-    def fft_offset(self, offset):
-        """Set offset of the FFT in dBV or in V depending on the current
-        fft_ordinate_unit.
-
-        Args:
-            offset (float): Offset value to set.
+    @fft_horizontal_scale.setter
+    def fft_horizontal_scale(self, scale):
         """
-        self._write(":FFT:OFFSet {}".format(offset))
-
-    @property
-    def fft_scale(self):
-        """Get the scale of the FFT in dB or in V depending on the current
-        fft_ordinate_unit.
-        """
-        return float(self._query(":FFT:SCALe?").strip())
-
-    @fft_scale.setter
-    def fft_scale(self, scale):
-        """Set the scale of the FFT in dB or in V depending on the current
-        fft_ordinate_unit.
+        Sets the horizontal scale of the FFT waveform.
 
         Args:
             scale (float): Scale value to set.
         """
-        self._write(":FFT:SCALe {}".format(scale))
+        self.write("FFT:HORizontal:SCAle {}".format(scale))
 
     @property
-    def fft_range(self):
-        """Get the vertical range of the FFT in dB or in V depending on the
-        current fft_ordinate_unit.
+    def fft_vertical_scale(self):
         """
-        return float(self._query(":FFT:RANGe?").strip())
+        Queries the vertical scale of the FFT waveform in dB.
 
-    @fft_range.setter
-    def fft_range(self, range_):
-        """Set the range of the FFT in dB or in V depending on the current
-        fft_ordinate_unit.
+        Returns:
+            float: The vertical scale of the FFT waveform.
+        """
+        return float(self.query("FFT:VERTical:SCAle?"))
+
+    @fft_vertical_scale.setter
+    def fft_vertical_scale(self, scale):
+        """
+        Sets the vertical scale of the FFT waveform.
 
         Args:
-            range_ (float): Range value to set.
+            scale (float): Scale value to set.
         """
-        self._write(":FFT:RANGe {}".format(range_))
+        self.write("FFT:VERTical:SCAle {}".format(scale))
 
     @property
     def fft_source(self):
         """Get the source of the FFT."""
-        return self._query(":FFT:SOURce1?").strip()
+        return self.query("FFT:SOURce?")
 
     @fft_source.setter
     def fft_source(self, source):
         """Set the source of the FFT.
 
         Args:
-            source (int): Source of the FFT. Either 1 for CHANnel1 or 2 for
-                          CHANnel2.
+            source (str): Source of the FFT. ('CH1', 'CH2')
         """
-        self._write(":FFT:SOURce1 CHANnel{}".format(source))
-
-    @property
-    def math_function(self):
-        """Selected math function."""
-        return self._query(":FUNC:OPERation?").strip()
-
-    @math_function.setter
-    def math_function(self, ftype):
-        """Select the current math_function.
-
-         Args:
-             ftype (str): Current function ('ADD', 'SUBT', 'MULT', 'DIV',
-                          'FFT', 'FFTPhase', 'LOWPass').
-        """
-        self._write(":FUNC:OPERation {}".format(ftype))
-
-    @property
-    def math_lowpass_freq(self):
-        """Get the -3dB cutoff frequency in Hz for the math_function
-        "LOWPass".
-        """
-        return float(self._query("FUNCtion:FREQuency:LOWPass?"))
-
-    @math_lowpass_freq.setter
-    def math_lowpass_freq(self, frequency):
-        """Set the -3dB cutoff frequency in Hz for the math_function "LOWPass".
-
-        Args:
-            frequency: Frequency to set the cutoff frequency.
-        """
-        self._write("FUNCtion:FREQuency:LOWPass {}".format(frequency))
-
-    @property
-    def math_fft_ordinate_unit(self):
-        """Selected unit for the ordinate of the MATH FFT operations.
-
-        If the the math_function is set to 'FFTPhase' the ordinate unit
-        of that operation is returned.
-
-        Else the 'FFT' ordinate unit is returned.
-        """
-        return self._query(':FUNCtion:FFT:VTYPe?').strip()
-
-    @math_fft_ordinate_unit.setter
-    def math_fft_ordinate_unit(self, fft_unit):
-        """Select the vertical unit for the MATH FFT operations.
-
-        Args:
-            fft_unit: Current FFT vertical unit. 'RAD' or 'DEGR' when
-                      math_function is set to 'FFTPhase'. 'DEC' or 'VRMS' for
-                      the 'FFT' (Current math_function does not have to be
-                      'FFT').
-        """
-        self._write(':FUNCtion:FFT:VTYPe {}'.format(fft_unit))
-
-    @property
-    def math_fft_window(self):
-        """Selected MATH FFT window. This option is applied on the 'FFT' as
-        well as the 'FFTPhase' math_function.
-        """
-        return self._query(':FUNCtion:FFT:WINDow?').strip()
-
-    @math_fft_window.setter
-    def math_fft_window(self, window):
-        """Select MATH FFT window. This option is applied on the 'FFT' as well
-         as the 'FFTPhase' math_function.
-
-        Args:
-            window: Window for the FFT ('RECT', 'HANN', 'FLAT' or 'BHAR').
-        """
-        self._write('FUNCtion:FFT:WINDow {}'.format(window))
-
-    @property
-    def math_fft_center_freq(self):
-        """Get the center frequency of the  MATH FFT. This option is applied on
-        the 'FFT' as well as the 'FFTPhase' math_function.
-        """
-        return float(self._query(":FUNCtion:FFT:CENTer?").strip())
-
-    @math_fft_center_freq.setter
-    def math_fft_center_freq(self, frequency):
-        """Set the center frequency of the MATH FFT in Hz. This option is
-        applied on the 'FFT' as well as the 'FFTPhase' math_function.
-
-        Args:
-            frequency (int): Center frequency of the FFT in Hz.
-        """
-        self._write(":FUNCtion:FFT:CENTer {}".format(frequency))
-
-    @property
-    def math_fft_span_freq(self):
-        """Get the frequency span of the MATH FFT in Hz. This option is
-        applied on the 'FFT' as well as the 'FFTPhase' math_function.
-        """
-        return float(self._query(":FUNCtion:FFT:SPAN?").strip())
-
-    @math_fft_span_freq.setter
-    def math_fft_span_freq(self, frequency):
-        """Set the frequency span of the MATH FFT in Hz. This option is
-        applied on the 'FFT' as well as the 'FFTPhase' math_function.
-
-        Args:
-            frequency (int): Span frequency of the FFT in Hz.
-        """
-        self._write(":FUNCtion:FFT:SPAN {}".format(frequency))
-
-    @property
-    def math_function_offset(self):
-        """Get the offset of the current math_function.
-
-        For the math_functions 'ADD', 'SUBT', 'MULT', 'DIV' and 'LOWPass' the
-        offset is given in V.
-
-        For the math_function 'FFT' the offset is given in dBV or in V
-        depending on the current math_fft_ordinate_unit.
-
-        For the math_function 'FFTPhase' the offset is given in radiant or
-        degrees depending on the current math_fft_ordinate_unit.
-        """
-        return float(self._query(":FUNCtion:OFFSet?").strip())
-
-    @math_function_offset.setter
-    def math_function_offset(self, offset):
-        """Set offset of the current math_function.
-
-        For the math_functions 'ADD', 'SUBT', 'MULT', 'DIV' and 'LOWPass' the
-        offset is set in V.
-
-        For the math_function 'FFT' the offset is set in dBV or in V depending
-        on the current math_fft_ordinate_unit.
-
-        For the math_function 'FFTPhase' the offset is set in radiant or
-        degrees depending on the current math_fft_ordinate_unit.
-
-        Args:
-            offset (float): Offset value to set.
-        """
-        self._write(":FUNCtion:OFFSet {}".format(offset))
-
-    @property
-    def math_function_scale(self):
-        """Get the scale of the current math_function.
-
-        For the math_functions 'ADD', 'SUBT', 'MULT', 'DIV' and 'LOWPass' the
-        scale is given in V.
-
-        For the math_function 'FFT' the scale is given in dB or in V depending
-        on the current math_fft_ordinate_unit.
-
-        For the math_function 'FFTPhase' the scale is given in radiant or
-        degrees depending on the current Math_fft_ordinate_unit.
-        """
-        return float(self._query(":FUNCtion:SCALe?").strip())
-
-    @math_function_scale.setter
-    def math_function_scale(self, scale):
-        """Set the scale of the current math_function.
-
-        For the math_functions 'ADD', 'SUBT', 'MULT', 'DIV' and 'LOWPass' the
-        scale is set in V.
-
-        For the math_function 'FFT' the scale is set in dB or in V depending on
-        the current math_fft_ordinate_unit.
-
-        For the math_function 'FFTPhase' the scale is given in radiant or
-        degrees depending on the current math_fft_ordinate_unit.
-        """
-        self._write(":FUNCtion:SCALe {}".format(scale))
-
-    def get_math_function_source(self, source):
-        """Get a function source. There are two sources
-        (source 1 and source 2). These sources are used for the
-        math_functions and can be either channel 1 or channel 2.
-
-        Args:
-            source(int): Source to get.
-        """
-        return self._query(":FUNCtion:SOURce{}?".format(source)).strip()
-
-    def set_math_function_source(self, source, channel):
-        """Set a math source. There are two sources (source 1 and source 2).
-        These sources are used for the math_functions and can be channel 1 or
-        channel 2. The math_functions 'ADD', 'SUBT', 'MULT' and 'DIV' use
-        source 1 and source 2. The math_functions 'FFT', 'FFTPhase', and
-        'LOWPass' use only source 1.
-
-        Args:
-            source: Source to set.
-            channel: Channel to set the source to.
-        """
-        self._write(":FUNCtion:SOURce{} CHANnel{}".format(source, channel))
-
-    @property
-    def white_image_bg(self):
-        """Image background color."""
-        return self._query(':HARDcopy:INKSaver?') == '1\n'
-
-    @white_image_bg.setter
-    def white_image_bg(self, value):
-        """Set image background color."""
-        if value:
-            self._write(':HARDcopy:INKSaver 1')
-        else:
-            self._write(':HARDcopy:INKSaver 0')
-
-    def get_signal(self, source=None):
-        """Get the signal displayed on screen.
-
-        Args:
-            source: Source for the waveform data (CHAN<n>, FUNC, MATH, FFT,
-                    WMEM<r>, ABUS, EXT). If set to None the current selected
-                    waveform_source is retrieved as signal source.
-        """
-        if source:
-            self.waveform_source = source
-        adc_zero = self.y_adc_zero
-        increment = self.y_increment
-        offset = self.y_offset
-        return [(value - adc_zero) * increment + offset for value in self.get_signal_raw()]
-
-    def get_time_vector(self, source=None):
-        """Get the time vector for the signal displayed on screen.
-
-        Args:
-            source: Source for the waveform data (CHAN<n>, FUNC, MATH, FFT,
-                    WMEM<r>, ABUS, EXT). If set to None the current selected
-                    waveform_source is retrieved as signal source
-                    for the time vector.
-        """
-        if source:
-            self.waveform_source = source
-        n_samples = self.waveform_points
-        increment = self.x_increment
-        offset = self.x_offset
-        return [offset + increment * idx for idx in range(n_samples)]
-
-    def screenshot(self, filename):
-        """Save the oscilloscope screen data as image.
-
-        Args:
-            filename: Name of the image file to save.
-        """
-        image_data = self._query_binary(":DISPlay:DATA? PNG, COLor")
-        if not filename.endswith('.png'):
-            filename += '.png'
-        with open(filename, 'wb') as file:
-            file.write(bytearray(image_data))
-
-    def save_setup(self, index):
-        """Save the current setup on the internal oscilloscope memory.
-
-        Args:
-            index (int): Index of the setup file (0-9).
-        """
-        self._write(':SAVE:SETup {}'.format(index))
-
-    def load_setup(self, index):
-        """Load a setup from the internal oscilloscope memory.
-
-        Args:
-            index (int): Index of the setup file (0-9).
-        """
-        self._write(":RECall:SETup {}".format(index))
+        self.write(":FFT:SOURce1 CHANnel{}".format(source))
 
 
 class Channel:
@@ -888,164 +1014,122 @@ class Channel:
 
     def _write(self, message):
         """Write a message to the visa interface and check for errors."""
-        self.osc._write(message)
+        self.osc.write(message)
 
     def _query(self, message):
         """Send a query to the visa interface and check for errors."""
-        value = self.osc._query(message)
+        value = self.osc.query(message)
         return value
 
-    @property
-    def _trig_lvl_low(self):
-        """
-        Get the low trigger voltage level voltage for the specified source.
-
-        The trigger levels LOW and HIGH are only useful if the trigger mode is set to "Transition mode" (Tran).
-
-        Returns:
-            float: The low trigger voltage level.
-        """
-        return float(self._query(':TRIGger:LEVel:LOW? CHANnel{}'.format(self.channel_index)).replace("\n", ""))
-
-    @_trig_lvl_low.setter
-    def _trig_lvl_low(self, trig_lvl):
-        """
-        Set the low trigger voltage level voltage for the specified source.
-
-        The trigger levels LOW and HIGH are only useful if the trigger mode is set to "Transition mode" (Tran).
-
-        Args:
-            trig_lvl (float): The low trigger voltage level.
-        """
-        self._write(':TRIGger:LEVel:LOW {}, CHANnel{}'.format(trig_lvl, self.channel_index))
-
-    @property
-    def _trig_lvl_high(self):
-        """
-        Get the high trigger voltage level voltage for the specified source.
-
-        The trigger levels LOW and HIGH are only useful if the trigger mode is set to "Transition mode" (Tran).
-
-        Returns:
-            float: The high trigger voltage level.
-        """
-        return float(self._query(':TRIGger:LEVel:HIGH? CHANnel{}'.format(self.channel_index)).replace("\n", ""))
-
-    @_trig_lvl_high.setter
-    def _trig_lvl_high(self, trig_lvl):
-        """
-        Set the high trigger voltage level voltage for the specified source.
-
-        The trigger levels LOW and HIGH are only useful if the trigger mode is set to "Transition mode" (Tran).
-
-        Args:
-            trig_lvl (float): The high trigger voltage level.
-        """
-        self._write(':TRIGger:LEVel:HIGH {}, CHANnel{}'.format(trig_lvl, self.channel_index))
+    def get_signal(self):
+        if self.enabled:
+            """Get the signal of the channel."""
+            return self.osc.get_signal("CH{}".format(self.channel_index))
+        else:
+            return [[]]
 
     @property
     def _trig_lvl(self):
         """
         Get the trigger level voltage for the active trigger source.
+        Each channel can have an independent level.
 
-        The trigger level is only useful if the trigger mode is set to "Edge triggering" (Edge) or
-        "Pulse Width triggering" (Glitch).
+        Used in Runt trigger as the lower threshold. Used for all other trigger types as the single level/threshold.
 
         Returns:
             float: The edge trigger voltage level.
         """
-        return float(self._query(':TRIGger:LEVel? CHANnel{}'.format(self.channel_index)).replace("\n", ""))
+        return float(self._query('TRIGger:A:LOWerthreshold:CH{}?'.format(self.channel_index)))
 
     @_trig_lvl.setter
     def _trig_lvl(self, trig_lvl):
         """
         Set the trigger level voltage for the active trigger source.
+        Each channel can have an independent level.
 
-        The trigger level is only useful if the trigger mode is set to "Edge triggering" (Edge) or
-        "Pulse Width triggering" (Glitch).
+        Used in Runt trigger as the lower threshold. Used for all other trigger types as the single level/threshold.
 
         Args:
             trig_lvl (float): The edge trigger voltage level.
         """
-        self._write(':TRIGger:LEVel {}, CHANnel{}'.format(trig_lvl, self.channel_index))
+        self._write('TRIGger:A:LOWerthreshold:CH{} {}'.format(self.channel_index, trig_lvl))
 
     @property
-    def y_range(self):
-        """Range of the channel in volts."""
-        return float(self._query(':CHANnel{}:RANGe?'.format(self.channel_index)))
-
-    @y_range.setter
-    def y_range(self, range_):
-        """Set voltage range for each channel.
-
-        Args:
-            range_: Range in volts.
+    def _trig_upper_threshold(self):
         """
-        self._write(':CHANnel{}:RANGe {}V'.format(self.channel_index, range_))
-
-    @property
-    def y_range_per_interval(self):
-        """Range per interval in volts."""
-        return self.y_range / 8
-
-    @y_range_per_interval.setter
-    def y_range_per_interval(self, range_):
-        """Set voltage range per interval.
-
-        Args:
-            range_: Ranges per interval in volts.
-        """
-        self.y_range = range_ * 8
-
-    @property
-    def attenuation(self):
-        """Probe attenuation."""
-        return float(self._query(':CHANnel{}:PROBe?'.format(self.channel_index)))
-
-    @attenuation.setter
-    def attenuation(self, att):
-        """Set probe attenuation range for each channel.
-
-        Args:
-            att: Attenuation to set.
-        """
-        self._write(':CHANnel{}:PROBe {}'.format(self.channel_index, att))
-
-    @property
-    def measured_unit(self):
-        """Get the measurement unit of the probe."""
-        return self._query(':CHANnel{}:UNITs?'.format(self.channel_index)).replace("\n", "")
-
-    @measured_unit.setter
-    def measured_unit(self, unit):
-        """Set the measurement unit of the probe.
-
-        Args:
-            unit: Unit to set. Either "VOLT" or "AMP".
-        """
-        self._write(':CHANnel{}:UNITs {}'.format(self.channel_index, unit))
-
-    @property
-    def coupling(self):
-        """
-        Get the input coupling for the specified channel.
+        Sets or queries the upper threshold for channel <x>, where x is the channel number.
+        Each channel can have an independent level. Used only for runt trigger type.
 
         Returns:
-            str: The coupling for the selected channel ('AC' or 'DC').
+            float: The upper threshold voltage level.
         """
-        return self._query(':CHANnel{}:COUPling?'.format(self.channel_index)).replace("\n", "")
+        return float(self._query('TRIGger:A:UPPerthreshold:CH{}?'.format(self.channel_index)))
 
-    @coupling.setter
-    def coupling(self, coupling):
+    @_trig_upper_threshold.setter
+    def _trig_upper_threshold(self, trig_lvl):
         """
-        Set the input coupling for the specified channel.
-
-        The coupling for each analog channel can be set to AC or DC.
+        Sets or queries the upper threshold for channel <x>, where x is the channel number.
+        Each channel can have an independent level. Used only for runt trigger type.
 
         Args:
-            coupling (str): The coupling for the selected channel ('AC' or 'DC').
+            trig_lvl (float): The upper threshold voltage level.
         """
-        self._write(':CHANnel{}:COUPling {}'.format(self.channel_index, coupling))
+        self._write('TRIGger:A:UPPerthreshold:CH{} {}'.format(self.channel_index, trig_lvl))
+
+
+    @property
+    def _probe_gain(self):
+        """
+        Queries the gain factor for the probe attached to the channel.
+
+        The gain of a probe is the output divided by the input transfer ratio.
+        For example, a common 10x probe has a gain of 0.1.
+
+        Returns:
+            float: The gain factor for the probe.
+        """
+        return float(self._query('CH{}:PRObe:GAIN?'.format(self.channel_index)))
+
+    @_probe_gain.setter
+    def _probe_gain(self, gain):
+        """
+        Sets the gain factor for the probe attached to the channel.
+
+        The gain of a probe is the output divided by the input transfer ratio.
+        For example, a common 10x probe has a gain of 0.1.
+
+        Args:
+            gain (float): The gain factor for the probe.
+        """
+        self._write('CH{}:PRObe:GAIN {}'.format(self.channel_index, gain))
+
+    @property
+    def enabled(self):
+        """
+        Returns whether the channel is on or off but does not indicate whether it is the selected waveform.
+
+        Returns:
+            bool: Returns whether the channel is on or off but does not indicate whether it is the selected waveform.
+        """
+        state = self._query('SELect:CH{}?'.format(self.channel_index))
+        if state == '1':
+            return True
+        else:
+            return False
+
+    @enabled.setter
+    def enabled(self, state):
+        """
+        Turns the display of the channel <x> waveform on or off, where <x > is the channel number.
+        This command also resets the acquisition.
+
+        Args:
+            state (float): The ON/OFF state of the channel.
+        """
+        if state:
+            self._write('SELect:CH{} ON'.format(self.channel_index))
+        else:
+            self._write('SELect:CH{} OFF'.format(self.channel_index))
 
     @property
     def trig_lvl(self):
@@ -1057,8 +1141,8 @@ class Channel:
                 The lower and upper trigger level if the trigger mode is set to "Transition mode" or
                 the trigger level if the trigger mode is set to "Edge triggering" or "Pulse Width triggering"
         """
-        if self.osc.trig_mode == 'TRAN':
-            trig_lvl = [self._trig_lvl_low, self._trig_lvl_high]
+        if self.osc.trig_type == 'PULSE' and self.osc.trig_pulse_class == 'RUNT':
+            trig_lvl = [self._trig_lvl, self._trig_upper_threshold]
         else:
             trig_lvl = [self._trig_lvl]
         return trig_lvl
@@ -1073,92 +1157,92 @@ class Channel:
                 The lower and upper trigger level if the trigger mode is set to "Transition mode" or
                 the trigger level if the trigger mode is set to "Edge triggering" or "Pulse Width triggering"
         """
-        if self.osc.trig_mode == 'TRAN':
-            self._trig_lvl_low = min(trig_lvl)
-            self._trig_lvl_high = max(trig_lvl)
+        if self.osc.trig_type == 'PULSE' and self.osc.trig_pulse_class == 'RUNT':
+            self._trig_lvl = min(trig_lvl)
+            self._trig_upper_threshold = max(trig_lvl)
         else:
             self._trig_lvl = trig_lvl[0]
 
     @property
+    def attenuation(self):
+        """Probe attenuation."""
+        return 1/self._probe_gain
+
+    @attenuation.setter
+    def attenuation(self, att):
+        """Set probe attenuation range for each channel.
+
+        Args:
+            att: Attenuation to set.
+        """
+        self._probe_gain = 1/att
+
+    @property
+    def measured_unit(self):
+        """Get the measurement unit of the probe."""
+        return self._query('CH{}:PRObe:UNIts?'.format(self.channel_index)).upper()
+
+    @property
+    def coupling(self):
+        """
+        Get the input coupling for the specified channel.
+
+        Returns:
+            str: The coupling for the selected channel ('AC' or 'DC').
+        """
+        return self._query('CH{}:COUPling?'.format(self.channel_index)).upper()
+
+    @coupling.setter
+    def coupling(self, coupling):
+        """
+        Set the input coupling for the specified channel.
+
+        The coupling for each analog channel can be set to AC or DC.
+
+        Args:
+            coupling (str): The coupling for the selected channel ('AC' or 'DC').
+        """
+        self._write('CH{}:COUPling  {}'.format(self.channel_index, coupling))
+
+
+    @property
     def offset(self):
         """
-        Get the vertical channel offset.
+        Queries the vertical offset for channel <x>, where x is the channel number.
+        This command offsets the vertical acquisition window (moves the level at the vertical center of the acquisition
+        window) for the specified channel. Visualize offset as scrolling the acquisition window towards the top of a
+        large signal for increased offset values, and scrolling towards the bottom for decreased offset values.
+        The resolution of the vertical window sets the offset increment for this control.
+        Offset adjusts only the vertical center of the acquisition window for channel waveforms to help determine what
+        data is acquired. The instrument always displays the input signal minus the offset value.
+        The channel offset range depends on the vertical scale factor. The valid ranges for the instrument are
+        (when the probe and external attenuation factor is X1):
+        For V/Div settings from 2 mV/div to 200 mV/div, the offset range is +/- 0.8 V
+        For V/Div settings from 202 mV/div to 5 V/div, the offset range is +/- 20 V
 
         Returns:
             float:
                 The current offset value for the selected channel.
         """
-        return self._query(':CHANnel{}:OFFSet?'.format(self.channel_index)).replace("\n", "")
+        return self._query('CH{}:OFFSet?'.format(self.channel_index))
 
     @offset.setter
     def offset(self, offset):
         """
-        Set the vertical channel offset.
+        Set the vertical offset for channel <x>, where x is the channel number.
+        This command offsets the vertical acquisition window (moves the level at the vertical center of the acquisition
+        window) for the specified channel. Visualize offset as scrolling the acquisition window towards the top of a
+        large signal for increased offset values, and scrolling towards the bottom for decreased offset values.
+        The resolution of the vertical window sets the offset increment for this control.
+        Offset adjusts only the vertical center of the acquisition window for channel waveforms to help determine what
+        data is acquired. The instrument always displays the input signal minus the offset value.
+        The channel offset range depends on the vertical scale factor. The valid ranges for the instrument are
+        (when the probe and external attenuation factor is X1):
+        For V/Div settings from 2 mV/div to 200 mV/div, the offset range is +/- 0.8 V
+        For V/Div settings from 202 mV/div to 5 V/div, the offset range is +/- 20 V
 
         Args:
             offset (float):
                 The current offset value for the selected channel.
         """
-        self._write(':CHANnel{}:OFFSet {}'.format(self.channel_index, offset))
-
-    @property
-    def display(self):
-        """
-        Get  the current display setting for the specified channel (ON=1, OFF=0)
-
-        Returns:
-            int:
-                1 if the channel is activated or 0 when not.
-        """
-        return self._query(':CHANnel{}:DISPlay?'.format(self.channel_index)).replace("\n", "")
-
-    @display.setter
-    def display(self, value):
-        """
-        Turn the display of the specified channel on or off
-        Args:
-            value (int):
-                1 (ON) or 0 (OFF)
-        """
-        self._write(':CHANnel{}:DISPlay {}'.format(self.channel_index, value))
-
-    def get_signal(self):
-        """Get the signal of the channel."""
-        return self.osc.get_signal("CHAN{}".format(self.channel_index))
-
-    def get_time_vector(self):
-        """Get the time vector of the current channel signal."""
-        return self.osc.get_time_vector("CHAN{}".format(self.channel_index))
-
-    def get_math_fft(self):
-        """Get the MATH FFT of the channel calculated by the oscilloscope.
-        Has no DC component. This modifies the current math_function.
-        """
-        self.osc.func_type = "FFT"
-        return self.osc.get_signal("FUNC")
-
-    def get_math_frequency_vector(self):
-        """Get the frequency vector of the MATH FFT."""
-        center_freq = self.osc.math_fft_center_freq
-        span_freq = self.osc.math_fft_span_freq
-        sample_size = self.osc.waveform_points
-        frequency_vector = np.linspace(-span_freq / 2 + center_freq,
-                                       center_freq + span_freq / 2, sample_size)
-        return frequency_vector
-
-    def get_fft(self):
-        """Get the FFT of the channel calculated by the oscilloscope.
-        Has no DC component.
-        """
-        self.osc.fft_source = str(self.channel_index)
-        return self.osc.get_signal("FFT")
-
-    def get_frequency_vector(self):
-        """Get the frequency vector of the FFT."""
-        center_freq = self.osc.fft_center_freq
-        span_freq = self.osc.fft_span_freq
-        sample_size = self.osc.waveform_points
-        frequency_vector = np.linspace(-span_freq / 2 + center_freq,
-                                       center_freq + span_freq / 2,
-                                       sample_size)
-        return frequency_vector
+        self._write('CH{}:OFFSet {}'.format(self.channel_index, offset))
