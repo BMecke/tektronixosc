@@ -13,13 +13,13 @@ except FileNotFoundError:
     long_description = readme
 
 setup(
-    name='keysightosc',
+    name='tektronixosc',
 
-    description='Interface for Keysight Oscilloscopes.',
+    description='Interface for Tektronix Oscilloscopes.',
     long_description=long_description,
-    author='Leander Claes',
-    author_email='claes@emt.uni-paderborn.de',
-    url='https://emt.uni-paderborn.de/',
+    author='Bruno Mecke',
+    author_email='info@bmecke.de',
+    url='https://bmecke.de/',
     license='BSD',
 
     # Automatically generate version number from git tags
@@ -30,8 +30,7 @@ setup(
 
     # Runtime dependencies
     install_requires=[
-        'pyvisa', 
-        'numpy',
+        'pyvisa',
         'pyvisa-py; sys_platform=="linux"',
         'pyusb; sys_platform=="linux"',
     ],
@@ -47,9 +46,9 @@ setup(
     # For a full list of valid classifiers, see:
     # https://pypi.python.org/pypi?%3Aaction=list_classifiers
     classifiers=[
-        'Development Status :: 2 - Pre-Alpha',
+        'Development Status :: 4 - Beta',
         'Intended Audience :: Science/Research',
-        'License :: Other/Proprietary License',
+        'License :: OSI Approved :: BSD License',
         'Programming Language :: Python :: 3',
         'Topic :: Scientific/Engineering',
     ],

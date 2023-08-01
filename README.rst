@@ -1,37 +1,44 @@
-*********************
-Keysight Oscilloscope
-*********************
+**********************
+Tektronix Oscilloscope
+**********************
 
-Interface for Keysight Oscilloscopes.
+Interface for Tektronix Oscilloscopes.
 
 
 Features
 ========
 
-* Basic support for model DSOX1102A
+* Basic support for model TBS1072C
 
 
 Installation
 ============
 
-To install the Keysight Oscilloscope Interface, run this command in your terminal::
+To install the Tektronix Oscilloscope Interface, run this command in your terminal::
 
-   $ pip install keysightosc
+   $ pip install tektronixosc
 
-Note that usage in Windows will require the `IO Libraries Suite`_ by Keysight.
+Note that usage in Windows will require the `NI-VISA driver`_.
 
 
 
 Usage
 =====
 
-To use Keysight Oscilloscope in a project::
+To use Tektronix Oscilloscope in a project::
 
-   from keysightosc import Oscilloscope
+   from tektronixosc import Oscilloscope
 
    osc = Oscilloscope()
    # Get signal data from first channel
-   data = osc.get_signal('CHAN1')
+   data = osc.channels[0].get_signal()
 
 
-.. _IO Libraries Suite: https://www.keysight.com/us/en/lib/software-detail/computer-software/io-libraries-suite-downloads-2175637.html
+.. _NI-VISA driver: https://www.ni.com/de/support/downloads/drivers/download.ni-visa.html#484351
+
+Thanks
+======
+
+Many thanks to the Measurement Engineering Group, since this project is a fork of their project `keysightosc`_.
+
+.. _keysightosc: https://github.com/emtpb/keysightosc

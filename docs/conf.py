@@ -53,11 +53,11 @@ exclude_patterns = ['_build']
 
 
 # -- Project-specific configuration ------------------------------------
-project = 'Keysight Oscilloscope'
-copyright = "2018, Measurement Engineering Group"
+project = 'Tektronix Oscilloscope'
+copyright = "2023, Bruno Mecke"
 
 # Get version number from git via setuptools_scm
-release = get_distribution('keysightosc').version
+release = get_distribution('tektronixosc').version
 version = '.'.join(release.split('.')[:3])
 
 today_fmt = '%Y-%m-%d'
@@ -76,7 +76,7 @@ html_theme = 'sphinx_rtd_theme'
 #html_sidebars = {}
 
 # Output file base name for HTML help builder.
-htmlhelp_basename = 'keysightoscdoc'
+htmlhelp_basename = 'tektronixoscdoc'
 
 
 # -- Options for LaTeX output ------------------------------------------
@@ -95,9 +95,9 @@ latex_elements = {
 }
 
 latex_documents = [
-    ('index', 'keysightosc.tex',
-     'Keysight Oscilloscope Documentation',
-     'Measurement Engineering Group', 'manual'),
+    ('index', 'tektronixosc.tex',
+     'Tektronix Oscilloscope Documentation',
+     'Bruno Mecke', 'manual'),
 ]
 
 # The name of an image file (relative to this directory) to place at

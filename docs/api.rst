@@ -2,6 +2,6 @@
 API Reference
 *************
 
-This chapter contains the API documentation for Keysight Oscilloscope.
+This chapter contains the API documentation for Tektronix Oscilloscope.
 
-.. automodule:: keysightosc.oscilloscope
+.. automodule:: tektronixosc.oscilloscope

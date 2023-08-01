@@ -2,22 +2,21 @@
 Credits
 *******
 
-Keysight Oscilloscope is developed at the `Measurement Engineering Group`_ (EMT)
-at `Paderborn University`_, Germany.
+Tektronix Oscilloscope is developed by `Bruno Mecke`_ (Github: `BMecke`_).
 
-.. _Measurement Engineering Group: https://emt.uni-paderborn.de/
-.. _Paderborn University: https://www.uni-paderborn.de/
+.. _Bruno Mecke: https://bmecke.de/
+.. _BMecke: https://github.com/bmecke/
 
 
 Development Lead
 ================
 
-* Leander Claes <claes@emt.uni-paderborn.de>
+* Bruno Mecke <info@bmecke.de>
 
 
 Contributors
 ============
 
+* Leander Claes
 * Kevin Koch
-* Bruno Mecke
 * Hanna Schmiegel

@@ -1,4 +1,4 @@
-"""Tests for `keysightosc` package."""
+"""Tests for `tektronixosc` package."""
 import pytest
 
-from keysightosc import oscilloscope
+from tektronixosc import oscilloscope

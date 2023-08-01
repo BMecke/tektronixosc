@@ -9,13 +9,16 @@ This project follows the guidelines of `Keep a changelog`_ and adheres to
 .. _Semantic versioning: https://semver.org/
 
 
-`0.1.0`_ - 2022-12-01
+`0.1.0`_ - 2023-08-01
 =====================
 
 Added
 -----
-* First preview release.
+* Files from keysightosc library.
+* Some functions described in the tektronix visa command guide.
 
+Changed
+-------
+* Updated all keysightosc functions to work with tektronix devices.
 
-.. _Unreleased: https://github.com/emtpb/keysightosc
-.. _0.1.0: https://github.com/emtpb/keysightosc/releases/tag/0.1.0
+.. _0.1.0: https://github.com/bmecke/tektronixosc/releases/tag/0.1.0

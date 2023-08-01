@@ -1,8 +1,8 @@
 *************************************************
-Welcome to Keysight Oscilloscope's documentation!
+Welcome to Tektronix Oscilloscope's documentation!
 *************************************************
 
-Interface for Keysight Oscilloscopes.
+Interface for Tektronix Oscilloscopes.
 
 
 Contents
