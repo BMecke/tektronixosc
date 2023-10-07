@@ -131,7 +131,7 @@ class Oscilloscope:
         # Setting DATa:STARt to 1 and DATa:STOP to 2500 always sends the entire waveform,
         # regardless of the acquisition mode.
         self._data_start = 1
-        self._data_stop = 2500
+        self._data_stop = self.record_length
 
     # https://stackoverflow.com/questions/20766813/how-to-convert-signed-to-unsigned-integer-in-python
     @staticmethod
@@ -261,7 +261,6 @@ class Oscilloscope:
         curve_data_start_index = curve_start_index + 2 + number_of_bytes
 
         header = data[:curve_start_index].decode().split(';')
-        print(header)
         y_values = list(data[curve_data_start_index:-1])
 
         y_values = [self._unsigned_to_signed(value, 1) for value in y_values]
@@ -504,7 +503,7 @@ class Oscilloscope:
         return self._identification_number.split(',')[1]
 
     @property
-    def max_samplerate(self):
+    def max_sample_rate(self):
         """
         The maximum real-time sample rate, which varies from model to model.
 
@@ -515,6 +514,50 @@ class Oscilloscope:
         # https://stackoverflow.com/questions/32861429/converting-number-in-scientific-notation-to-int
         max_samplerate = float(self.query('ACQuire:MAXSamplerate?'))
         return int(max_samplerate)
+
+    @property
+    def sample_rate(self):
+        """
+        Get the sample rate.
+
+        Returns:
+            float: The sample rate.
+        """
+        # There are 16 divisions displayed on the screen
+        return self.record_length / (self.horizontal_scale * 16)
+
+    @sample_rate.setter
+    def sample_rate(self, sample_rate):
+        """
+        Set the sample rate.
+
+        The value is automatically rounded by the device.
+
+        Args:
+            sample_rate (float): The sample rate.
+        """
+        # There are 16 divisions displayed on the screen
+        self.horizontal_scale = self.record_length / (sample_rate * 16)
+
+    @property
+    def horizontal_scale(self):
+        """
+        Queries the time base horizontal scale.
+
+        Returns:
+            float: The main scale per division.
+        """
+        return float(self.query('HORizontal:MAIn:SCAle?'))
+
+    @horizontal_scale.setter
+    def horizontal_scale(self, scale):
+        """
+        Sets the time base horizontal scale.
+
+        Args:
+            scale (float): The main scale per division.
+        """
+        self.write('HORizontal:MAIn:SCAle {}'.format(scale))
 
     @property
     def acquisition_mode(self):
@@ -679,6 +722,29 @@ class Oscilloscope:
         return int(self.query('WFMOutpre:NR_Pt?'))
 
     @property
+    def record_length(self):
+        """
+         Returns the horizontal record length of acquired waveforms.
+         The sample rate is automatically adjusted at the same time to maintain a constant time per division.
+
+         Returns:
+            int: The query form of this command returns the current horizontal record length.
+        """
+        return int(self.query('HORizontal:RESOlution?'))
+
+    @record_length.setter
+    def record_length(self, record_length):
+        """
+         Sets the horizontal record length of acquired waveforms.
+         The sample rate is automatically adjusted at the same time to maintain a constant time per division.
+
+         Args:
+            record_length (int): The query form of this command returns the current horizontal record length.
+        """
+        self._data_stop = record_length
+        self.write('HORizontal:RESOlution {}'.format(record_length))
+
+    @property
     def x_increment(self):
         """
         Increment of the time vector. This value corresponds to the sampling interval.
@@ -687,7 +753,7 @@ class Oscilloscope:
             float: The horizontal point spacing in units of WFMOutpre:XUNit for the waveform specified by the
                    DATa:SOUrce command.
         """
-        return float(self.query(':WAVeform:XINCrement?'))
+        return float(self.query('WFMOutpre:XINcr?'))
 
     @property
     def x_unit(self):
@@ -855,6 +921,24 @@ class Oscilloscope:
                 self.write('TRIGger:A:PULse:WIDth:POLarity POSitive')
             elif trig_slope == 'FALL':
                 self.write('TRIGger:A:PULse:WIDth:POLarity NEGative')
+
+    @property
+    def pre_sample_time(self):
+        return float(self.query('HORizontal:DELay:TIMe?'))
+
+    @pre_sample_time.setter
+    def pre_sample_time(self, pre_sample_time):
+        self.write('HORizontal:DELay:TIME {}'.format(str(pre_sample_time)))
+
+    @property
+    def pre_sample_ratio(self):
+        #ToDo: Add commments
+        return -self.pre_sample_time / (self.horizontal_scale * 16) + 0.5
+
+    @pre_sample_ratio.setter
+    def pre_sample_ratio(self, pre_sample_ratio):
+        self.pre_sample_time = -(pre_sample_ratio - 0.5 ) * (self.horizontal_scale * 16)
+
 
     @property
     def trig_pulse_class(self):
@@ -1124,7 +1208,7 @@ class Channel:
         This command also resets the acquisition.
 
         Args:
-            state (float): The ON/OFF state of the channel.
+            state (bool): The ON/OFF state of the channel.
         """
         if state:
             self._write('SELect:CH{} ON'.format(self.channel_index))

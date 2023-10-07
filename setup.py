@@ -19,7 +19,7 @@ setup(
     long_description=long_description,
     author='Bruno Mecke',
     author_email='info@bmecke.de',
-    url='https://bmecke.de/',
+    url='https://github.com/BMecke/tektronixosc',
     license='BSD',
 
     # Automatically generate version number from git tags
