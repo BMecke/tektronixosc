@@ -924,19 +924,62 @@ class Oscilloscope:
 
     @property
     def pre_sample_time(self):
+        """
+        Queries the horizontal delay time.
+
+        Sets the delay of acquisition data so that the resulting waveform is
+        centered x ms after the trigger occurs.
+        The amount of time the acquisition is delayed depends on sample rate and record length.
+
+        Returns:
+            float: The horizontal delay time.
+        """
         return float(self.query('HORizontal:DELay:TIMe?'))
 
     @pre_sample_time.setter
     def pre_sample_time(self, pre_sample_time):
+        """
+        Sets the horizontal delay time.
+
+        Sets the delay of acquisition data so that the resulting waveform is
+        centered x ms after the trigger occurs.
+        The amount of time the acquisition is delayed depends on sample rate and record length.
+
+        Args:
+            pre_sample_time (float): The horizontal delay time.
+        """
         self.write('HORizontal:DELay:TIME {}'.format(str(pre_sample_time)))
 
     @property
     def pre_sample_ratio(self):
-        #ToDo: Add commments
+        """
+        Queries the pre sample ratio.
+
+        Pre sample ratio is set as a number between 0 and 1, representing the percentage of the total record length:
+        0 equals a trigger point at the start of the record, 0% pre samples and 100% post samples
+        0.5 equals a trigger point half way the record, 50% pre samples and 50% post samples
+        1 equals a trigger point at the end of the record, 100% pre samples and 0% post samples
+        By default the pre sample ratio is: 0.5 (trigger point in the middle of the screen).
+
+        Returns:
+            float: The pre sample ratio.
+        """
         return -self.pre_sample_time / (self.horizontal_scale * 16) + 0.5
 
     @pre_sample_ratio.setter
     def pre_sample_ratio(self, pre_sample_ratio):
+        """
+        Sets the pre sample ratio.
+
+        Pre sample ratio is set as a number between 0 and 1, representing the percentage of the total record length:
+        0 equals a trigger point at the start of the record, 0% pre samples and 100% post samples
+        0.5 equals a trigger point half way the record, 50% pre samples and 50% post samples
+        1 equals a trigger point at the end of the record, 100% pre samples and 0% post samples
+        By default the pre sample ratio is: 0.5 (trigger point in the middle of the screen).
+
+        Args:
+            pre_sample_ratio (float): The pre sample ratio.
+        """
         self.pre_sample_time = -(pre_sample_ratio - 0.5 ) * (self.horizontal_scale * 16)
 
 
