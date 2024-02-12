@@ -6,6 +6,7 @@ tektronix_product_ids = (871, 964)
 tektronix_200_series = (871,)
 tektronix_1000c_series = (964,)
 
+connected_devices = {}
 
 class Bidict(dict):
     def __init__(self, *args, **kwargs):
@@ -23,6 +24,9 @@ def list_connected_devices():
     """List all connected VISA device addresses."""
     rm = vi.ResourceManager()
     resources = rm.list_resources()
+    for resource in resources:
+        key = resource.split('::')[3]
+        connected_devices[key] = resource
     return resources
 
 
@@ -65,20 +69,7 @@ def list_connected_tektronix_oscilloscopes():
 
     device_list = []
     for resource in resource_list:
-        device_info = resource.split("::")
-        # Check only for USB devices
-        if "USB" not in device_info[0]:
-            continue
-        # Extract vendor and product id
-        # Cast the device info depending on the numeral system
-        if "x" in device_info[1]:
-            vendor_id = int(device_info[1], base=16)
-        else:
-            vendor_id = int(device_info[1])
-        if "x" in device_info[2]:
-            product_id = int(device_info[2], base=16)
-        else:
-            product_id = int(device_info[2])
+        vendor_id, product_id = extract_vendor_and_product_id(resource)
 
         # Check for the tektronix vendor id and the tested
         # product ids
@@ -90,6 +81,24 @@ def list_connected_tektronix_oscilloscopes():
             device_list.append(device)
 
     return device_list
+
+
+def extract_vendor_and_product_id(resource):
+    device_info = resource.split("::")
+    # Check only for USB devices
+    if "USB" not in device_info[0]:
+        return None, None
+    # Extract vendor and product id
+    # Cast the device info depending on the numeral system
+    if "x" in device_info[1]:
+        vendor_id = int(device_info[1], base=16)
+    else:
+        vendor_id = int(device_info[1])
+    if "x" in device_info[2]:
+        product_id = int(device_info[2], base=16)
+    else:
+        product_id = int(device_info[2])
+    return vendor_id, product_id
 
 
 class Oscilloscope:
@@ -108,44 +117,44 @@ class Oscilloscope:
         # Initialize visa resource manager
         self._resource_manager = vi.ResourceManager()
         self._instrument = None
-        # Open specified resource
-        if resource is not None:
-            self._instrument = self._resource_manager.open_resource(resource)
-            connected_resource = resource
-        # Try to open a resource from the resource list
-        else:
+        product_id = None
+
+        if resource:
+            # Open specified resource
+            if 'USB' in resource:
+                self._instrument = self._resource_manager.open_resource(resource)
+            elif resource in connected_devices.keys():
+                resource = connected_devices[resource]
+                self._instrument = self._resource_manager.open_resource(resource)
+            else:
+                # Retry after updating connected_devices dict
+                list_connected_devices()
+                if resource in connected_devices.keys():
+                    resource = connected_devices[resource]
+                    self._instrument = self._resource_manager.open_resource(resource)
+            vendor_id, product_id = extract_vendor_and_product_id(resource)
+            self.product_id = product_id
+
+        if not (self._instrument and product_id):
+            # Try to open a resource from the resource list
             resources = self._resource_manager.list_resources()
             for resource in resources:
-                device_info = resource.split("::")
-                # Check only for USB devices
-                if "USB" not in device_info[0]:
-                    continue
-                # Extract vendor and product id
-                # Cast the device info depending on the numeral system
-                if "x" in device_info[1]:
-                    vendor_id = int(device_info[1], base=16)
-                else:
-                    vendor_id = int(device_info[1])
-                if "x" in device_info[2]:
-                    product_id = int(device_info[2], base=16)
-                else:
-                    product_id = int(device_info[2])
+                vendor_id, product_id = extract_vendor_and_product_id(resource)
                 # Check for the tektronix vendor id and the tested
                 # product ids
-                if (vendor_id != tektronix_vendor_id) or \
-                        (product_id not in tektronix_product_ids):
-                    continue
-                try:
-                    self._instrument = self._resource_manager.open_resource(
-                        resource)
-                    self.product_id = product_id
-                except vi.errors.VisaIOError:
-                    pass
-                else:
-                    connected_resource = resource
+                if not ((vendor_id != tektronix_vendor_id) or (product_id not in tektronix_product_ids)):
+                    try:
+                        self._instrument = self._resource_manager.open_resource(
+                            resource)
+                        self.product_id = product_id
+                        break
+                    except vi.errors.VisaIOError:
+                        pass
 
-            if self._instrument is None:
-                raise RuntimeError("No tektronix oscilloscope found.")
+        if self._instrument is None:
+            raise RuntimeError("No tektronix oscilloscope found.")
+        else:
+            connected_resource = resource
 
         # Initialize possible options for settings depending on the device
         self.horizontal_views = {}
