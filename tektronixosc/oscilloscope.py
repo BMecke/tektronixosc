@@ -1010,12 +1010,15 @@ class Oscilloscope:
         Returns:
             str: The trigger source ('CH1', 'CH2', 'LINE', 'AUX').
         """
-        if self.trig_type == 'EDGE':
-            return self.query('TRIGger:A:EDGE:SOUrce?').upper()
-        elif self.trig_pulse_class == 'RUNT':
-            return self.query('TRIGGER:A:RUNT:SOURCE?').upper()
+        if self.trig_type == 'edge':
+            source = self.query(f'{self.trig_str}:EDGE:SOUrce?').upper()
+            return self.trig_edge_sources.inverse[source]
+        elif self.trig_pulse_class == 'runt':
+            source = self.query('TRIGGER:A:RUNT:SOURCE?').upper()
+            return self.trig_edge_sources.inverse[source]
         else:
-            return self.query('TRIGger:A:PULse:SOUrce?').upper()
+            source = self.query('TRIGger:A:PULse:SOUrce?').upper()
+            return self.trig_edge_sources.inverse[source]
 
     @trig_source.setter
     def trig_source(self, trigger_source):
@@ -1025,9 +1028,9 @@ class Oscilloscope:
         Args:
             trigger_source (str): The trigger source ('CH1', 'CH2', 'LINE', 'AUX').
         """
-        if self.trig_type == 'EDGE':
-            self.write('TRIGger:A:EDGE:SOUrce {}'.format(trigger_source))
-        elif self.trig_pulse_class == 'RUNT':
+        if self.trig_type == 'edge':
+            self.write(f'{self.trig_str}:EDGE:SOUrce {trigger_source}')
+        elif self.trig_pulse_class == 'runt':
             self.write('TRIGger:A:RUNT:SOUrce {}'.format(trigger_source))
         else:
             self.write('TRIGger:A:PULse:SOUrce {}'.format(trigger_source))
@@ -1040,7 +1043,7 @@ class Oscilloscope:
         This is equivalent to setting the Type option in the Trigger menu.
 
         Returns:
-            str: The trigger type ('EDGE', 'PULSE').
+            str: The trigger type ('edge', 'pulse').
         """
         trigger_type = self.query(f'{self.trig_str}:TYPe?')
         return self.trig_types.inverse[trigger_type]
@@ -1067,20 +1070,21 @@ class Oscilloscope:
         Returns:
             str: The trigger slope ('rising', 'falling').
         """
-        if self.trig_type == 'EDGE':
-            return self.query('TRIGger:A:EDGE:SLOpe?').upper()
-        elif self.trig_pulse_class == 'RUNT':
+        if self.trig_type == 'edge':
+            slope = self.query(f'{self.trig_str}:EDGE:SLOpe?')
+            return self.trig_slopes.inverse[slope]
+        elif self.trig_pulse_class == 'runt':
             slope = self.query('TRIGger:A:RUNT:POLarity?').upper()
             if slope == 'NEGATIVE':
-                return 'FALL'
+                return 'falling'
             else:
-                return 'RISE'
+                return 'rising'
         else:
             slope = self.query('TRIGger:A:PULse:WIDth:POLarity?').upper()
             if slope == 'NEGATIVE':
-                return 'FALL'
+                return 'falling'
             else:
-                return 'RISE'
+                return 'rising'
 
     @trig_slope.setter
     def trig_slope(self, trig_slope):
@@ -1093,20 +1097,17 @@ class Oscilloscope:
         Args:
             trig_slope (str): The trigger slope ('RISE', 'FALL').
         """
-        if self.trig_type == 'EDGE':
-            if trig_slope == 'RISE' or trig_slope == 'RISe':
-                self.write('TRIGger:A:EDGE:SLOpe RISe')
-            elif trig_slope == 'FALL':
-                self.write('TRIGger:A:EDGE:SLOpe FALL')
-        elif self.trig_pulse_class == 'RUNT':
-            if trig_slope == 'RISE' or trig_slope == 'RISe':
+        if self.trig_type == 'edge':
+            self.write(f'{self.trig_str}:EDGE:SLOpe {self.trig_slopes[trig_slope]}')
+        elif self.trig_pulse_class == 'runt':
+            if trig_slope == 'rising':
                 self.write('TRIGger:A:RUNT:POLarity POSitive')
-            elif trig_slope == 'FALL':
+            elif trig_slope == 'falling':
                 self.write('TRIGger:A:RUNT:POLarity NEGative')
         else:
-            if trig_slope == 'RISE' or trig_slope == 'RISe':
+            if trig_slope == 'rising':
                 self.write('TRIGger:A:PULse:WIDth:POLarity POSitive')
-            elif trig_slope == 'FALL':
+            elif trig_slope == 'falling':
                 self.write('TRIGger:A:PULse:WIDth:POLarity NEGative')
 
     @property
@@ -1176,7 +1177,7 @@ class Oscilloscope:
         Queries the type of pulse on which to trigger.
 
         Returns:
-            class_ (str): The pulse trigger class ('RUNT', 'WIDTH').
+            class_ (str): The pulse trigger class ('runt', 'width').
 
                 RUNT triggers when a pulse crosses the first preset voltage threshold but does not cross the second
                 preset threshold before recrossing the first.
@@ -1187,7 +1188,7 @@ class Oscilloscope:
         if self.product_id in tektronix_200_series:
             raise NotImplementedError("Setting not available for this device")
         class_ = self.query(f'{self.trig_str}:PULse:CLAss?')
-        return self.trig_pulse_classes[class_]
+        return self.trig_pulse_classes.inverse[class_]
 
     @trig_pulse_class.setter
     def trig_pulse_class(self, class_):
@@ -1195,7 +1196,7 @@ class Oscilloscope:
         Sets the type of pulse on which to trigger.
 
         Args:
-            class_ (str): The pulse trigger class ('RUNT', 'WIDTH').
+            class_ (str): The pulse trigger class ('runt', 'width').
 
                 RUNT triggers when a pulse crosses the first preset voltage threshold but does not cross the second
                 preset threshold before recrossing the first.
@@ -1504,7 +1505,7 @@ class Channel:
                 The lower and upper trigger level if the trigger mode is set to "Transition mode" or
                 the trigger level if the trigger mode is set to "Edge triggering" or "Pulse Width triggering"
         """
-        if self.osc.trig_type == 'PULSE' and self.osc.trig_pulse_class == 'RUNT':
+        if self.osc.trig_type == 'pulse' and self.osc.trig_pulse_class == 'runt':
             trig_lvl = [self._trig_lvl, self._trig_upper_threshold]
         else:
             trig_lvl = [self._trig_lvl]
@@ -1520,7 +1521,7 @@ class Channel:
                 The lower and upper trigger level if the trigger mode is set to "Transition mode" or
                 the trigger level if the trigger mode is set to "Edge triggering" or "Pulse Width triggering"
         """
-        if self.osc.trig_type == 'PULSE' and self.osc.trig_pulse_class == 'RUNT':
+        if self.osc.trig_type == 'pulse' and self.osc.trig_pulse_class == 'runt':
             self._trig_lvl = min(trig_lvl)
             self._trig_upper_threshold = max(trig_lvl)
         else:
