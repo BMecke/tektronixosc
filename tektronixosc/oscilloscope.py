@@ -8,6 +8,7 @@ tektronix_1000c_series = (964,)
 
 connected_devices = {}
 
+
 class Bidict(dict):
     def __init__(self, *args, **kwargs):
         super(Bidict, self).__init__(*args, **kwargs)
@@ -25,7 +26,7 @@ def list_connected_devices():
     rm = vi.ResourceManager()
     resources = rm.list_resources()
     for resource in resources:
-        key = resource.split('::')[3]
+        key = resource.split("::")[3]
         connected_devices[key] = resource
     return resources
 
@@ -44,9 +45,13 @@ def get_device_id(resource):
         if resource not in busy_resources:
             rm = vi.ResourceManager()
             device = rm.open_resource(resource)
-            idn = device.query('*IDN?')
-            parts = idn.split(',')
-            resource_info = {'Manufacturer': parts[0], 'Model': parts[1], 'Serial Number': parts[2]}
+            idn = device.query("*IDN?")
+            parts = idn.split(",")
+            resource_info = {
+                "Manufacturer": parts[0],
+                "Model": parts[1],
+                "Serial Number": parts[2],
+            }
             busy_resources[resource] = resource_info
             return resource_info
         else:
@@ -72,8 +77,9 @@ def list_connected_tektronix_oscilloscopes():
 
         # Check for the tektronix vendor id and the tested
         # product ids
-        if (vendor_id != tektronix_vendor_id) or \
-                (product_id not in tektronix_product_ids):
+        if (vendor_id != tektronix_vendor_id) or (
+            product_id not in tektronix_product_ids
+        ):
             continue
         device = get_device_id(resource)
         if device is not None:
@@ -119,7 +125,7 @@ class Oscilloscope:
 
         if resource:
             # Open specified resource
-            if 'USB' in resource:
+            if "USB" in resource:
                 self._instrument = self._resource_manager.open_resource(resource)
             elif resource in connected_devices.keys():
                 resource = connected_devices[resource]
@@ -140,9 +146,14 @@ class Oscilloscope:
                 vendor_id, product_id = extract_vendor_and_product_id(resource)
                 # Check for the tektronix vendor id and the tested
                 # product ids
-                if not ((vendor_id != tektronix_vendor_id) or (product_id not in tektronix_product_ids)):
+                if not (
+                    (vendor_id != tektronix_vendor_id)
+                    or (product_id not in tektronix_product_ids)
+                ):
                     try:
-                        self._instrument = self._resource_manager.open_resource(resource)
+                        self._instrument = self._resource_manager.open_resource(
+                            resource
+                        )
                         self.product_id = product_id
                         break
                     except vi.errors.VisaIOError:
@@ -182,10 +193,13 @@ class Oscilloscope:
         if self.product_id == 871:
             self.trig_str = "TRIGger:MAIn"
 
-        idn = self._instrument.query('*IDN?')
-        parts = idn.split(',')
-        resource_info = {'Manufacturer': parts[0], 'Model': parts[1],
-                         'Serial Number': parts[2]}
+        idn = self._instrument.query("*IDN?")
+        parts = idn.split(",")
+        resource_info = {
+            "Manufacturer": parts[0],
+            "Model": parts[1],
+            "Serial Number": parts[2],
+        }
         busy_resources[connected_resource] = resource_info
 
         # Clear device to prevent "Query INTERRUPTED" errors if the device was unplugged before
@@ -205,8 +219,8 @@ class Oscilloscope:
         #    3. Use the DATa:WIDth command to specify the number of bytes per data point.
         #    4. Use the DATa:STARt and DATa:STOP commands to specify the part of the waveform that you want to transfer.
         #    5. ...
-        self._waveform_encoding = 'binary'
-        self._binary_data_format = 'signed'
+        self._waveform_encoding = "binary"
+        self._binary_data_format = "signed"
         self._data_width = 1
         # Setting DATa:STARt to 1 and DATa:STOP to 2500 always sends the entire waveform,
         # regardless of the acquisition mode.
@@ -216,75 +230,123 @@ class Oscilloscope:
     # https://stackoverflow.com/questions/20766813/how-to-convert-signed-to-unsigned-integer-in-python
     @staticmethod
     def _unsigned_to_signed(n, byte_count):
-        return int.from_bytes(n.to_bytes(byte_count, 'little', signed=False), 'little', signed=True)
+        return int.from_bytes(
+            n.to_bytes(byte_count, "little", signed=False), "little", signed=True
+        )
 
     def init_options(self):
-        self.horizontal_views = Bidict({"main": "MAIN", "window": "WINDOW",
-                                 "zone": "ZONE"})
+        self.horizontal_views = Bidict(
+            {"main": "MAIN", "window": "WINDOW", "zone": "ZONE"}
+        )
         if self.product_id in tektronix_200_series:
-            self.acquisition_modes = Bidict({"sample": "SAMPLE",
-                                             "peak_detect": "PEAKDETECT",
-                                             "average": "AVERAGE"})
+            self.acquisition_modes = Bidict(
+                {"sample": "SAMPLE", "peak_detect": "PEAKDETECT", "average": "AVERAGE"}
+            )
         elif self.product_id in tektronix_1000c_series:
-            self.acquisition_modes = Bidict({"sample": "SAMPLE",
-                                             "peak_detect": "PEAKDETECT",
-                                             "hi_res": "HIRES",
-                                             "average": "AVERAGE"})
+            self.acquisition_modes = Bidict(
+                {
+                    "sample": "SAMPLE",
+                    "peak_detect": "PEAKDETECT",
+                    "hi_res": "HIRES",
+                    "average": "AVERAGE",
+                }
+            )
         if self.product_id in tektronix_200_series:
-            self.data_sources = Bidict({"ch1": "CH1", "ch2": "CH2",
-                                        "math": "MATH", "refa": "REFA",
-                                        "refb": "REFB"})
+            self.data_sources = Bidict(
+                {
+                    "ch1": "CH1",
+                    "ch2": "CH2",
+                    "math": "MATH",
+                    "refa": "REFA",
+                    "refb": "REFB",
+                }
+            )
         elif self.product_id in tektronix_1000c_series:
-            self.data_sources = Bidict({"ch1": "CH1", "ch2": "CH2",
-                                        "math": "MATH", "ref1": "REF1",
-                                          "ref2": "REF2"})
+            self.data_sources = Bidict(
+                {
+                    "ch1": "CH1",
+                    "ch2": "CH2",
+                    "math": "MATH",
+                    "ref1": "REF1",
+                    "ref2": "REF2",
+                }
+            )
 
-        self.data_encodes = Bidict({"ascii": "ASCIi", "ribinary": "RIBinary",
-                                    "rpbinary": "RPBinary",
-                                    "sribinary": "SRIbinary",
-                                    "srpbinary": "SRPbinary"})
+        self.data_encodes = Bidict(
+            {
+                "ascii": "ASCIi",
+                "ribinary": "RIBinary",
+                "rpbinary": "RPBinary",
+                "sribinary": "SRIbinary",
+                "srpbinary": "SRPbinary",
+            }
+        )
         self.waveform_encodes = Bidict({"ascii": "ASC", "binary": "BIN"})
 
         self.binary_formats = Bidict({"signed": "RI", "unsigned": "RP"})
 
         self.acquisition_states = Bidict({"run": "RUN", "stop": "STOP"})
-        self.acquisition_stop_afters = Bidict({"run_stop": "RUNSTOP",
-                                        "sequence": "SEQUENCE"})
+        self.acquisition_stop_afters = Bidict(
+            {"run_stop": "RUNSTOP", "sequence": "SEQUENCE"}
+        )
         if self.product_id in tektronix_200_series:
-            self.trig_types = Bidict({"edge": "EDGE", "video": "VIDEO",
-                                      "pulse": "PULSE"})
+            self.trig_types = Bidict(
+                {"edge": "EDGE", "video": "VIDEO", "pulse": "PULSE"}
+            )
         elif self.product_id in tektronix_1000c_series:
             self.trig_types = Bidict({"edge": "EDGE", "pulse": "PULSE"})
 
         if self.product_id in tektronix_200_series:
-            self.trig_edge_sources = Bidict({"ch1": "CH1", "ch2": "CH2",
-                                                "external": "EXT",
-                                                "external_attenuated": "EXT5",
-                                                "line": "LINE"})
+            self.trig_edge_sources = Bidict(
+                {
+                    "ch1": "CH1",
+                    "ch2": "CH2",
+                    "external": "EXT",
+                    "external_attenuated": "EXT5",
+                    "line": "LINE",
+                }
+            )
         elif self.product_id in tektronix_1000c_series:
-            self.trig_edge_sources = Bidict({"ch1": "CH1", "ch2": "CH2",
-                                                "line": "LINE", "aux": "AUX"})
+            self.trig_edge_sources = Bidict(
+                {"ch1": "CH1", "ch2": "CH2", "line": "LINE", "aux": "AUX"}
+            )
         if self.product_id in tektronix_1000c_series:
             self.trig_runt_sources = Bidict({"ch1": "CH1", "ch2": "CH2"})
         if self.product_id in tektronix_1000c_series:
-            self.trig_pulse_sources = Bidict({"ch1": "CH1", "ch2": "CH2",
-                                              "line": "LINE"})
+            self.trig_pulse_sources = Bidict(
+                {"ch1": "CH1", "ch2": "CH2", "line": "LINE"}
+            )
         if self.product_id in tektronix_200_series:
-            self.trig_pulse_sources = Bidict({"ch1": "CH1", "ch2": "CH2",
-                                              "external": "EXT",
-                                              "external_attenuated": "EXT5"})
+            self.trig_pulse_sources = Bidict(
+                {
+                    "ch1": "CH1",
+                    "ch2": "CH2",
+                    "external": "EXT",
+                    "external_attenuated": "EXT5",
+                }
+            )
         self.trig_modes = Bidict({"auto": "AUTO", "normal": "NORMAL"})
         self.trig_slopes = Bidict({"rising": "RISE", "falling": "FALL"})
-        self.trig_polarities = Bidict({"negative": "NEGATIVE",
-                                       "positive": "POSITIVE"})
-        self.trig_couplings = Bidict({"ac": "AC", "dc": "DC", "lowpass": "HFREJ",
-                                      "highpass": "LFREJ",
-                                      "noise_filt": "NOISEREJ"})
+        self.trig_polarities = Bidict({"negative": "NEGATIVE", "positive": "POSITIVE"})
+        self.trig_couplings = Bidict(
+            {
+                "ac": "AC",
+                "dc": "DC",
+                "lowpass": "HFREJ",
+                "highpass": "LFREJ",
+                "noise_filt": "NOISEREJ",
+            }
+        )
         self.trig_pulse_classes = Bidict({"runt": "RUNT", "width": "WIDTH"})
         self.fft_vertical_units = Bidict({"dezibel": "DB", "linear": "LINEAR"})
-        self.fft_windows = Bidict({"hamming": "HAMMING", "hanning": "HANNING",
-                                   "rectangular": "RECTANGULAR",
-                                   "blackman_harris": "BLACKMANHARRIS"})
+        self.fft_windows = Bidict(
+            {
+                "hamming": "HAMMING",
+                "hanning": "HANNING",
+                "rectangular": "RECTANGULAR",
+                "blackman_harris": "BLACKMANHARRIS",
+            }
+        )
 
     def _clear(self):
         """
@@ -295,7 +357,7 @@ class Oscilloscope:
         • The Standard Event Status Register (SESR)
         • The Status Byte Register (except the MAV bit)
         """
-        self._instrument.write('*CLS')
+        self._instrument.write("*CLS")
 
     def _err_check(self):
         """
@@ -304,21 +366,26 @@ class Oscilloscope:
         Raise an RuntimeError if an error is detected.
         """
         answer = self._instrument.query("*ESR?")
-        answer = int(answer.removesuffix('\n'))
+        answer = int(answer.removesuffix("\n"))
 
         if answer & 0b00100000:
-            raise RuntimeError("Command Error: Error occurred while the "
-                               "instrument was parsing a command or query")
+            raise RuntimeError(
+                "Command Error: Error occurred while the "
+                "instrument was parsing a command or query"
+            )
         elif answer & 0b00010000:
-            raise RuntimeError("Execution Error: Error occurred while "
-                               "executing a command or query")
+            raise RuntimeError(
+                "Execution Error: Error occurred while " "executing a command or query"
+            )
         elif answer & 0b00001000:
             raise RuntimeError("Device Error: A device error occured")
         elif answer & 0b00000100:
-            raise RuntimeError("Query Error: An attempt was made to read "
-                               "the Output Queue when no data was present "
-                               "or pending, or that data in the Output "
-                               "Queue was lost")
+            raise RuntimeError(
+                "Query Error: An attempt was made to read "
+                "the Output Queue when no data was present "
+                "or pending, or that data in the Output "
+                "Queue was lost"
+            )
 
     def query(self, message):
         """Send a query to the visa interface and check for errors.
@@ -327,7 +394,7 @@ class Oscilloscope:
             message (str): Message to send to the device.
         """
         answer = self._instrument.query(message)
-        answer = answer.removesuffix('\n')
+        answer = answer.removesuffix("\n")
         self._err_check()
         return answer
 
@@ -353,7 +420,7 @@ class Oscilloscope:
         Args:
             message (str): Message to send to the device.
         """
-        answer = self._instrument.query_binary_values(message, datatype='s')
+        answer = self._instrument.query_binary_values(message, datatype="s")
         self._err_check()
         return answer
 
@@ -368,15 +435,15 @@ class Oscilloscope:
 
     def single(self):
         """Arm for single shot acquisition."""
-        self.write('ACQuire:STOPAfter SEQuence')
+        self.write("ACQuire:STOPAfter SEQuence")
 
     def continuous(self):
         """Arm for continuous data acquisition."""
-        self.write('ACQuire:STOPAfter RUNSTop')
+        self.write("ACQuire:STOPAfter RUNSTop")
 
     def stop(self):
         """Stop acquisition."""
-        self.write('ACQuire:STATE STOP')
+        self.write("ACQuire:STATE STOP")
 
     def reset(self):
         """Reset the instrument to standard settings.
@@ -385,7 +452,7 @@ class Oscilloscope:
               this seems unintuitive, in addition to the reset, the probe
               attenuation is set to 1:1.
         """
-        self.write('*RST')
+        self.write("*RST")
         self.channels[0].attenuation = 1
         self.channels[1].attenuation = 1
 
@@ -401,7 +468,7 @@ class Oscilloscope:
         and any accumulated data is discarded. Also, the instrument resets the number of acquisitions.
         If the RUN argument is issued while in continuous mode, acquisition continues.
         """
-        self.write('ACQuire:STATE RUN')
+        self.write("ACQuire:STATE RUN")
 
     def autoset(self):
         """
@@ -410,7 +477,7 @@ class Oscilloscope:
         function, refer to the user manual for your instrument. Command only, no query form.
 
         """
-        self.write('AUTOSet EXECute')
+        self.write("AUTOSet EXECute")
 
     def get_signal(self, source=None):
         """
@@ -436,41 +503,43 @@ class Oscilloscope:
         # response to WAVFrm? is guaranteed to provide a synchronized preamble and curve.
 
         self._enable_header_in_response = True
-        self._instrument.write('WAVFrm?')
+        self._instrument.write("WAVFrm?")
         data = self._instrument.read_raw()
         self._enable_header_in_response = False
 
         # Separate 'WFMOutpre?' and 'CURVe?' command
         # 'CURVe?' response format: #<x><yyy><data><newline>,
         # where: <x> is the number of y bytes. For example, if <yyy>=500, then <x>=3.
-        curve_start_index = data.find(b'#')
+        curve_start_index = data.find(b"#")
         number_of_bytes = int(chr(data[curve_start_index + 1]))
-        curve_length = int(data[curve_start_index + 2: curve_start_index + 2 + number_of_bytes])
+        curve_length = int(
+            data[curve_start_index + 2 : curve_start_index + 2 + number_of_bytes]
+        )
         curve_data_start_index = curve_start_index + 2 + number_of_bytes
 
-        header = data[:curve_start_index].decode().split(';')
+        header = data[:curve_start_index].decode().split(";")
         y_values = list(data[curve_data_start_index:-1])
 
         y_values = [self._unsigned_to_signed(value, 1) for value in y_values]
         if len(y_values) != curve_length:
-            raise RuntimeError('Error while getting the curve data')
+            raise RuntimeError("Error while getting the curve data")
 
-        x_increment = next((s for s in header if 'XINCR' in s), None)
-        x_zero = next((s for s in header if 'XZERO' in s), None)
+        x_increment = next((s for s in header if "XINCR" in s), None)
+        x_zero = next((s for s in header if "XZERO" in s), None)
         if not (x_increment or x_zero):
-            raise RuntimeError('Error while getting XINCR, XZERO or XOFF')
-        x_increment = float(x_increment.split(' ')[1])
-        x_zero = float(x_zero.split(' ')[1])
+            raise RuntimeError("Error while getting XINCR, XZERO or XOFF")
+        x_increment = float(x_increment.split(" ")[1])
+        x_zero = float(x_zero.split(" ")[1])
         x_values = [x_zero + index * x_increment for index in range(curve_length)]
 
-        y_increment = next((s for s in header if 'YMULT' in s), None)
-        y_zero = next((s for s in header if 'YZERO' in s), None)
-        y_off = next((s for s in header if 'YOFF' in s), None)
+        y_increment = next((s for s in header if "YMULT" in s), None)
+        y_zero = next((s for s in header if "YZERO" in s), None)
+        y_off = next((s for s in header if "YOFF" in s), None)
         if not (y_increment or y_zero or y_off):
-            raise RuntimeError('Error while getting YMULT, YZERO or YOFF')
-        y_increment = float(y_increment.split(' ')[1])
-        y_zero = float(y_zero.split(' ')[1])
-        y_off = float(y_off.split(' ')[1])
+            raise RuntimeError("Error while getting YMULT, YZERO or YOFF")
+        y_increment = float(y_increment.split(" ")[1])
+        y_zero = float(y_zero.split(" ")[1])
+        y_off = float(y_off.split(" ")[1])
         y_values = [((y_point - y_off) * y_increment) + y_zero for y_point in y_values]
 
         return x_values, y_values
@@ -490,7 +559,7 @@ class Oscilloscope:
         Returns:
             bool: True, if the response header is enabled, false if the response header is disabled.
         """
-        if "1" in self.query('HEADer?'):
+        if "1" in self.query("HEADer?"):
             return True
         else:
             return False
@@ -512,9 +581,9 @@ class Oscilloscope:
                           the response header.
         """
         if state:
-            self.write('HEADer ON')
+            self.write("HEADer ON")
         else:
-            self.write('HEADer OFF')
+            self.write("HEADer OFF")
 
     @property
     def _waveform_encoding(self):
@@ -529,23 +598,23 @@ class Oscilloscope:
             'binary' specifies that outgoing data is to be in a binary format whose further specification is
             determined by 'WFMOutpre:BYT_Nr', 'WFMOutpre:BIT_Nr', 'WFMOutpre:BN_Fmt' and 'WFMInpre:FILTERFreq'.
         """
-        encoding = self.query(f'{self.wfm_str}:ENCdg?')
+        encoding = self.query(f"{self.wfm_str}:ENCdg?")
         return self.waveform_encodes.inverse[encoding]
 
     @_waveform_encoding.setter
     def _waveform_encoding(self, encoding):
         """
-         Sets the type of encoding for outgoing waveform.
+        Sets the type of encoding for outgoing waveform.
 
-         Args:
-             encoding(str): The type of encoding for outgoing waveforms ('ascii', 'binary').
+        Args:
+            encoding(str): The type of encoding for outgoing waveforms ('ascii', 'binary').
 
-                'ascii' specifies that the outgoing data is to be in ASCII format.
+               'ascii' specifies that the outgoing data is to be in ASCII format.
 
-                'binary' specifies that outgoing data is to be in a binary format whose further specification is
-                determined by 'WFMOutpre:BYT_Nr', 'WFMOutpre:BIT_Nr', 'WFMOutpre:BN_Fmt' and 'WFMInpre:FILTERFreq'.
-         """
-        self.write(f'{self.wfm_str}:ENCdg {self.waveform_encodes[encoding]}')
+               'binary' specifies that outgoing data is to be in a binary format whose further specification is
+               determined by 'WFMOutpre:BYT_Nr', 'WFMOutpre:BIT_Nr', 'WFMOutpre:BN_Fmt' and 'WFMInpre:FILTERFreq'.
+        """
+        self.write(f"{self.wfm_str}:ENCdg {self.waveform_encodes[encoding]}")
 
     @property
     def _data_start(self):
@@ -556,19 +625,19 @@ class Oscilloscope:
         Returns:
             int: The first data point that will be transferred, which ranges from 1 to the record length
         """
-        return self.query_int('DATa:STARt?')
+        return self.query_int("DATa:STARt?")
 
     @_data_start.setter
     def _data_start(self, data_start):
         """
-         Sets  the starting data point for incoming or outgoing waveform transfer.
-         This command lets you transfer partial waveforms to and from the instrument.
+        Sets  the starting data point for incoming or outgoing waveform transfer.
+        This command lets you transfer partial waveforms to and from the instrument.
 
-         Args:
-             data_start (int): The first data point that will be transferred,
-                               which  ranges from 1 to the record length.
-         """
-        self.write(f'DATa:STARt {data_start}')
+        Args:
+            data_start (int): The first data point that will be transferred,
+                              which  ranges from 1 to the record length.
+        """
+        self.write(f"DATa:STARt {data_start}")
 
     @property
     def _data_stop(self):
@@ -588,7 +657,7 @@ class Oscilloscope:
         Returns:
             int: The last data point that will be transferred, which ranges from 1 to the record length.
         """
-        return self.query_int('DATa:STOP?')
+        return self.query_int("DATa:STOP?")
 
     @_data_stop.setter
     def _data_stop(self, nr1):
@@ -611,7 +680,7 @@ class Oscilloscope:
         Args:
             nr1 (int): The last data point that will be transferred, which ranges from 1 to the record length.
         """
-        self.write(f'DATa:STOP {nr1}')
+        self.write(f"DATa:STOP {nr1}")
 
     @property
     def _data_width(self):
@@ -629,7 +698,7 @@ class Oscilloscope:
         Returns:
             int: The number of bytes per waveform data points.
         """
-        return self.query_int('DATa:WIDth?')
+        return self.query_int("DATa:WIDth?")
 
     @_data_width.setter
     def _data_width(self, width):
@@ -646,7 +715,7 @@ class Oscilloscope:
         Args:
             width (int): The number of bytes per waveform data points.
         """
-        self.write(f'DATa:WIDth {width}')
+        self.write(f"DATa:WIDth {width}")
 
     @property
     def _binary_data_format(self):
@@ -658,7 +727,7 @@ class Oscilloscope:
             format (str): The format of binary data for outgoing waveforms ('signed', 'unsigned').
         """
 
-        data_format = self.query(f'{self.wfm_str}:BN_Fmt?')
+        data_format = self.query(f"{self.wfm_str}:BN_Fmt?")
         return self.binary_formats.inverse[data_format]
 
     @_binary_data_format.setter
@@ -670,7 +739,7 @@ class Oscilloscope:
         Args:
             data_format (str): The format of binary data for outgoing waveforms ('signed', 'unsigned').
         """
-        self.write(f'{self.wfm_str}:BN_Fmt {self.binary_formats[data_format]}')
+        self.write(f"{self.wfm_str}:BN_Fmt {self.binary_formats[data_format]}")
 
     @property
     def _identification_number(self):
@@ -682,7 +751,7 @@ class Oscilloscope:
                  CF:91.1CT FV:v<instrument firmware version number>
                  TBS 1XXXC:v<module firmware version number>
         """
-        return self.query('*IDN?')
+        return self.query("*IDN?")
 
     @property
     def device_model(self):
@@ -692,7 +761,7 @@ class Oscilloscope:
         Returns:
             str: The device model
         """
-        return self._identification_number.split(',')[1]
+        return self._identification_number.split(",")[1]
 
     @property
     def max_sample_rate(self):
@@ -706,7 +775,7 @@ class Oscilloscope:
         if self.product_id in tektronix_200_series:
             raise NotImplementedError("Setting not available for this device")
         # https://stackoverflow.com/questions/32861429/converting-number-in-scientific-notation-to-int
-        max_samplerate = self.query_float('ACQuire:MAXSamplerate?')
+        max_samplerate = self.query_float("ACQuire:MAXSamplerate?")
         return int(max_samplerate)
 
     @property
@@ -741,7 +810,7 @@ class Oscilloscope:
         Returns:
             float: The main scale per division.
         """
-        return float(self.query('HORizontal:MAIn:SCAle?'))
+        return float(self.query("HORizontal:MAIn:SCAle?"))
 
     @horizontal_scale.setter
     def horizontal_scale(self, scale):
@@ -751,7 +820,7 @@ class Oscilloscope:
         Args:
             scale (float): The main scale per division.
         """
-        self.write('HORizontal:MAIn:SCAle {}'.format(scale))
+        self.write("HORizontal:MAIn:SCAle {}".format(scale))
 
     @property
     def acquisition_mode(self):
@@ -792,7 +861,7 @@ class Oscilloscope:
                 The number of waveform acquisitions that go into making up the average waveform is set or queried using
                 the ACQuire:NUMAVg command.
         """
-        mode = self.query('ACQuire:MODe?')
+        mode = self.query("ACQuire:MODe?")
         return self.acquisition_modes.inverse[mode]
 
     @acquisition_mode.setter
@@ -832,7 +901,7 @@ class Oscilloscope:
                 The number of waveform acquisitions that go into making up the average waveform is set or queried using
                 the ACQuire:NUMAVg command.
         """
-        self.write(f'ACQuire:MODe {self.acquisition_modes[mode]}')
+        self.write(f"ACQuire:MODe {self.acquisition_modes[mode]}")
 
     @property
     def visa_query_delay(self):
@@ -879,7 +948,7 @@ class Oscilloscope:
                 REF1–REF2 specifies which reference waveform data will be transferred from the instrument to the
                 controller, waveforms, 1 or 2.
         """
-        return self.query('DATa:SOUrce?').split(' ')[1]
+        return self.query("DATa:SOUrce?").split(" ")[1]
 
     @data_source.setter
     def data_source(self, source):
@@ -908,30 +977,30 @@ class Oscilloscope:
         Returns:
             int: The number of points for the DATa:SOUrce waveform.
         """
-        return self.query_int(f'{self.wfm_str}:NR_Pt?')
+        return self.query_int(f"{self.wfm_str}:NR_Pt?")
 
     @property
     def record_length(self):
         """
-         Returns the horizontal record length of acquired waveforms.
-         The sample rate is automatically adjusted at the same time to maintain a constant time per division.
+        Returns the horizontal record length of acquired waveforms.
+        The sample rate is automatically adjusted at the same time to maintain a constant time per division.
 
-         Returns:
-            int: The query form of this command returns the current horizontal record length.
+        Returns:
+           int: The query form of this command returns the current horizontal record length.
         """
-        return int(self.query('HORizontal:RESOlution?'))
+        return int(self.query("HORizontal:RESOlution?"))
 
     @record_length.setter
     def record_length(self, record_length):
         """
-         Sets the horizontal record length of acquired waveforms.
-         The sample rate is automatically adjusted at the same time to maintain a constant time per division.
+        Sets the horizontal record length of acquired waveforms.
+        The sample rate is automatically adjusted at the same time to maintain a constant time per division.
 
-         Args:
-            record_length (int): The query form of this command returns the current horizontal record length.
+        Args:
+           record_length (int): The query form of this command returns the current horizontal record length.
         """
         self._data_stop = record_length
-        self.write('HORizontal:RESOlution {}'.format(record_length))
+        self.write("HORizontal:RESOlution {}".format(record_length))
 
     @property
     def x_increment(self):
@@ -942,7 +1011,7 @@ class Oscilloscope:
             float: The horizontal point spacing in units of WFMOutpre:XUNit for the waveform specified by the
                    DATa:SOUrce command.
         """
-        return self.query_float(f'{self.wfm_str}:XINcr?')
+        return self.query_float(f"{self.wfm_str}:XINcr?")
 
     @property
     def x_unit(self):
@@ -952,7 +1021,7 @@ class Oscilloscope:
         Returns:
             str:  The horizontal units for the waveform.
         """
-        return self.query(f'{self.wfm_str}:XUNit?')
+        return self.query(f"{self.wfm_str}:XUNit?")
 
     @property
     def x_offset(self):
@@ -964,7 +1033,7 @@ class Oscilloscope:
         Returns:
             float: The time coordinate of the first point in the outgoing waveform.
         """
-        return self.query(f'{self.wfm_str}:XZEro?')
+        return self.query(f"{self.wfm_str}:XZEro?")
 
     @property
     def y_increment(self):
@@ -978,7 +1047,7 @@ class Oscilloscope:
         Returns:
             float: The vertical scale for the corresponding waveform.
         """
-        return self.query(f'{self.wfm_str}:YMUlt?')
+        return self.query(f"{self.wfm_str}:YMUlt?")
 
     @property
     def y_unit(self):
@@ -988,7 +1057,7 @@ class Oscilloscope:
         Returns:
             str:  The  vertical units for the waveform.
         """
-        return self.query(f'{self.wfm_str}:YUNit?')
+        return self.query(f"{self.wfm_str}:YUNit?")
 
     @property
     def y_offset(self):
@@ -1000,7 +1069,7 @@ class Oscilloscope:
         Returns:
             float:  The vertical offset in units.
         """
-        return self.query(f'{self.wfm_str}:YZEro?')
+        return self.query(f"{self.wfm_str}:YZEro?")
 
     @property
     def trig_source(self):
@@ -1010,14 +1079,14 @@ class Oscilloscope:
         Returns:
             str: The trigger source ('CH1', 'CH2', 'LINE', 'AUX').
         """
-        if self.trig_type == 'edge':
-            source = self.query(f'{self.trig_str}:EDGE:SOUrce?').upper()
+        if self.trig_type == "edge":
+            source = self.query(f"{self.trig_str}:EDGE:SOUrce?").upper()
             return self.trig_edge_sources.inverse[source]
-        elif self.trig_pulse_class == 'runt':
-            source = self.query('TRIGGER:A:RUNT:SOURCE?').upper()
+        elif self.trig_pulse_class == "runt":
+            source = self.query("TRIGGER:A:RUNT:SOURCE?").upper()
             return self.trig_edge_sources.inverse[source]
         else:
-            source = self.query('TRIGger:A:PULse:SOUrce?').upper()
+            source = self.query("TRIGger:A:PULse:SOUrce?").upper()
             return self.trig_edge_sources.inverse[source]
 
     @trig_source.setter
@@ -1028,13 +1097,12 @@ class Oscilloscope:
         Args:
             trigger_source (str): The trigger source ('CH1', 'CH2', 'LINE', 'AUX').
         """
-        if self.trig_type == 'edge':
-            self.write(f'{self.trig_str}:EDGE:SOUrce {trigger_source}')
-        elif self.trig_pulse_class == 'runt':
-            self.write('TRIGger:A:RUNT:SOUrce {}'.format(trigger_source))
+        if self.trig_type == "edge":
+            self.write(f"{self.trig_str}:EDGE:SOUrce {trigger_source}")
+        elif self.trig_pulse_class == "runt":
+            self.write("TRIGger:A:RUNT:SOUrce {}".format(trigger_source))
         else:
-            self.write('TRIGger:A:PULse:SOUrce {}'.format(trigger_source))
-
+            self.write("TRIGger:A:PULse:SOUrce {}".format(trigger_source))
 
     @property
     def trig_type(self):
@@ -1045,7 +1113,7 @@ class Oscilloscope:
         Returns:
             str: The trigger type ('edge', 'pulse').
         """
-        trigger_type = self.query(f'{self.trig_str}:TYPe?')
+        trigger_type = self.query(f"{self.trig_str}:TYPe?")
         return self.trig_types.inverse[trigger_type]
 
     @trig_type.setter
@@ -1057,7 +1125,7 @@ class Oscilloscope:
         Args:
             trigger_type (str): The trigger type ('edge', 'pulse').
         """
-        self.write(f'{self.trig_str}:TYPe {self.trig_types[trigger_type]}')
+        self.write(f"{self.trig_str}:TYPe {self.trig_types[trigger_type]}")
 
     @property
     def trig_slope(self):
@@ -1070,21 +1138,21 @@ class Oscilloscope:
         Returns:
             str: The trigger slope ('rising', 'falling').
         """
-        if self.trig_type == 'edge':
-            slope = self.query(f'{self.trig_str}:EDGE:SLOpe?')
+        if self.trig_type == "edge":
+            slope = self.query(f"{self.trig_str}:EDGE:SLOpe?")
             return self.trig_slopes.inverse[slope]
-        elif self.trig_pulse_class == 'runt':
-            slope = self.query('TRIGger:A:RUNT:POLarity?').upper()
-            if slope == 'NEGATIVE':
-                return 'falling'
+        elif self.trig_pulse_class == "runt":
+            slope = self.query("TRIGger:A:RUNT:POLarity?").upper()
+            if slope == "NEGATIVE":
+                return "falling"
             else:
-                return 'rising'
+                return "rising"
         else:
-            slope = self.query('TRIGger:A:PULse:WIDth:POLarity?').upper()
-            if slope == 'NEGATIVE':
-                return 'falling'
+            slope = self.query("TRIGger:A:PULse:WIDth:POLarity?").upper()
+            if slope == "NEGATIVE":
+                return "falling"
             else:
-                return 'rising'
+                return "rising"
 
     @trig_slope.setter
     def trig_slope(self, trig_slope):
@@ -1097,18 +1165,18 @@ class Oscilloscope:
         Args:
             trig_slope (str): The trigger slope ('RISE', 'FALL').
         """
-        if self.trig_type == 'edge':
-            self.write(f'{self.trig_str}:EDGE:SLOpe {self.trig_slopes[trig_slope]}')
-        elif self.trig_pulse_class == 'runt':
-            if trig_slope == 'rising':
-                self.write('TRIGger:A:RUNT:POLarity POSitive')
-            elif trig_slope == 'falling':
-                self.write('TRIGger:A:RUNT:POLarity NEGative')
+        if self.trig_type == "edge":
+            self.write(f"{self.trig_str}:EDGE:SLOpe {self.trig_slopes[trig_slope]}")
+        elif self.trig_pulse_class == "runt":
+            if trig_slope == "rising":
+                self.write("TRIGger:A:RUNT:POLarity POSitive")
+            elif trig_slope == "falling":
+                self.write("TRIGger:A:RUNT:POLarity NEGative")
         else:
-            if trig_slope == 'rising':
-                self.write('TRIGger:A:PULse:WIDth:POLarity POSitive')
-            elif trig_slope == 'falling':
-                self.write('TRIGger:A:PULse:WIDth:POLarity NEGative')
+            if trig_slope == "rising":
+                self.write("TRIGger:A:PULse:WIDth:POLarity POSitive")
+            elif trig_slope == "falling":
+                self.write("TRIGger:A:PULse:WIDth:POLarity NEGative")
 
     @property
     def pre_sample_time(self):
@@ -1122,7 +1190,7 @@ class Oscilloscope:
         Returns:
             float: The horizontal delay time.
         """
-        return float(self.query('HORizontal:DELay:TIMe?'))
+        return float(self.query("HORizontal:DELay:TIMe?"))
 
     @pre_sample_time.setter
     def pre_sample_time(self, pre_sample_time):
@@ -1136,7 +1204,7 @@ class Oscilloscope:
         Args:
             pre_sample_time (float): The horizontal delay time.
         """
-        self.write('HORizontal:DELay:TIME {}'.format(str(pre_sample_time)))
+        self.write("HORizontal:DELay:TIME {}".format(str(pre_sample_time)))
 
     @property
     def pre_sample_ratio(self):
@@ -1168,8 +1236,7 @@ class Oscilloscope:
         Args:
             pre_sample_ratio (float): The pre sample ratio.
         """
-        self.pre_sample_time = -(pre_sample_ratio - 0.5 ) * (self.horizontal_scale * 16)
-
+        self.pre_sample_time = -(pre_sample_ratio - 0.5) * (self.horizontal_scale * 16)
 
     @property
     def trig_pulse_class(self):
@@ -1187,7 +1254,7 @@ class Oscilloscope:
         """
         if self.product_id in tektronix_200_series:
             raise NotImplementedError("Setting not available for this device")
-        class_ = self.query(f'{self.trig_str}:PULse:CLAss?')
+        class_ = self.query(f"{self.trig_str}:PULse:CLAss?")
         return self.trig_pulse_classes.inverse[class_]
 
     @trig_pulse_class.setter
@@ -1206,7 +1273,7 @@ class Oscilloscope:
         """
         if self.product_id in tektronix_200_series:
             raise NotImplementedError("Setting not available for this device")
-        self.write(f'{self.trig_str}:PULse:CLAss {self.trig_pulse_classes[class_]}')
+        self.write(f"{self.trig_str}:PULse:CLAss {self.trig_pulse_classes[class_]}")
 
     @property
     def trigger_time_width(self):
@@ -1218,7 +1285,7 @@ class Oscilloscope:
         """
         if self.product_id in tektronix_200_series:
             raise NotImplementedError("Setting not available for this device")
-        return self.query_float(f'{self.trig_str}:RUNT:WIDth?')
+        return self.query_float(f"{self.trig_str}:RUNT:WIDth?")
 
     @trigger_time_width.setter
     def trigger_time_width(self, time):
@@ -1230,14 +1297,14 @@ class Oscilloscope:
         """
         if self.product_id in tektronix_200_series:
             raise NotImplementedError("Setting not available for this device")
-        self.write(f'{self.trig_str}:RUNT:WIDth {time}')
+        self.write(f"{self.trig_str}:RUNT:WIDth {time}")
 
     @property
     def fft_ordinate_unit(self):
         """Selected unit for the ordinate of the FFT operation."""
         if self.product_id in tektronix_200_series:
             raise NotImplementedError("Setting not available for this device")
-        fft_unit = self.query('FFT:VType?')
+        fft_unit = self.query("FFT:VType?")
         return self.fft_vertical_units[fft_unit]
 
     @fft_ordinate_unit.setter
@@ -1249,14 +1316,14 @@ class Oscilloscope:
         """
         if self.product_id in tektronix_200_series:
             raise NotImplementedError("Setting not available for this device")
-        self.write(f'FFT:VType {self.fft_vertical_units[fft_unit]}')
+        self.write(f"FFT:VType {self.fft_vertical_units[fft_unit]}")
 
     @property
     def fft_window(self):
         """Selected FFT window."""
         if self.product_id in tektronix_200_series:
             raise NotImplementedError("Setting not available for this device")
-        window = self.query('FFT:WINdow?')
+        window = self.query("FFT:WINdow?")
         return self.fft_windows.inverse[window]
 
     @fft_window.setter
@@ -1268,7 +1335,7 @@ class Oscilloscope:
         """
         if self.product_id in tektronix_200_series:
             raise NotImplementedError("Setting not available for this device")
-        self.write(f'FFT:WINdow {self.fft_windows[window]}')
+        self.write(f"FFT:WINdow {self.fft_windows[window]}")
 
     @property
     def fft_horizontal_scale(self):
@@ -1292,7 +1359,7 @@ class Oscilloscope:
         """
         if self.product_id in tektronix_200_series:
             raise NotImplementedError("Setting not available for this device")
-        self.write(f'FFT:HORizontal:SCAle {scale}')
+        self.write(f"FFT:HORizontal:SCAle {scale}")
 
     @property
     def fft_vertical_scale(self):
@@ -1393,7 +1460,7 @@ class Channel:
         """
         if self.osc.product_id in tektronix_200_series:
             raise NotImplementedError("Setting not available for this device")
-        return self.query(f'{self.osc.trig_str}:LOWerthreshold:CH{self.channel_index}?')
+        return self.query(f"{self.osc.trig_str}:LOWerthreshold:CH{self.channel_index}?")
 
     @_trig_lvl.setter
     def _trig_lvl(self, trig_lvl):
@@ -1408,7 +1475,7 @@ class Channel:
         """
         if self.osc.product_id in tektronix_200_series:
             raise NotImplementedError("Setting not available for this device")
-        self.write(f'TRIGger:A:LOWerthreshold:CH{self.channel_index} {trig_lvl}')
+        self.write(f"TRIGger:A:LOWerthreshold:CH{self.channel_index} {trig_lvl}")
 
     @property
     def _trig_upper_threshold(self):
@@ -1421,7 +1488,7 @@ class Channel:
         """
         if self.osc.product_id in tektronix_200_series:
             raise NotImplementedError("Setting not available for this device")
-        return self.query(f'TRIGger:A:UPPerthreshold:CH{self.channel_index}?')
+        return self.query(f"TRIGger:A:UPPerthreshold:CH{self.channel_index}?")
 
     @_trig_upper_threshold.setter
     def _trig_upper_threshold(self, trig_lvl):
@@ -1434,7 +1501,7 @@ class Channel:
         """
         if self.osc.product_id in tektronix_200_series:
             raise NotImplementedError("Setting not available for this device")
-        self.write(f'TRIGger:A:UPPerthreshold:CH{self.channel_index} {trig_lvl}')
+        self.write(f"TRIGger:A:UPPerthreshold:CH{self.channel_index} {trig_lvl}")
 
     @property
     def _probe_gain(self):
@@ -1448,8 +1515,8 @@ class Channel:
             float: The gain factor for the probe.
         """
         if self.osc.product_id in tektronix_200_series:
-            return 1/self.attenuation
-        return self.query_float(f'CH{self.channel_index}:PRObe:GAIN?')
+            return 1 / self.attenuation
+        return self.query_float(f"CH{self.channel_index}:PRObe:GAIN?")
 
     @_probe_gain.setter
     def _probe_gain(self, gain):
@@ -1463,9 +1530,9 @@ class Channel:
             gain (float): The gain factor for the probe.
         """
         if self.osc.product_id in tektronix_200_series:
-            self.attenuation = 1/gain
+            self.attenuation = 1 / gain
         else:
-            self.write(f'CH{self.channel_index}:PRObe:GAIN {gain}')
+            self.write(f"CH{self.channel_index}:PRObe:GAIN {gain}")
 
     @property
     def enabled(self):
@@ -1475,8 +1542,8 @@ class Channel:
         Returns:
             bool: Returns whether the channel is on or off but does not indicate whether it is the selected waveform.
         """
-        state = self.query(f'SELect:CH{self.channel_index}?')
-        if state == '1':
+        state = self.query(f"SELect:CH{self.channel_index}?")
+        if state == "1":
             return True
         else:
             return False
@@ -1491,9 +1558,9 @@ class Channel:
             state (bool): The ON/OFF state of the channel.
         """
         if state:
-            self.write(f'SELect:CH{self.channel_index} ON')
+            self.write(f"SELect:CH{self.channel_index} ON")
         else:
-            self.write(f'SELect:CH{self.channel_index} OFF')
+            self.write(f"SELect:CH{self.channel_index} OFF")
 
     @property
     def trig_lvl(self):
@@ -1505,7 +1572,7 @@ class Channel:
                 The lower and upper trigger level if the trigger mode is set to "Transition mode" or
                 the trigger level if the trigger mode is set to "Edge triggering" or "Pulse Width triggering"
         """
-        if self.osc.trig_type == 'pulse' and self.osc.trig_pulse_class == 'runt':
+        if self.osc.trig_type == "pulse" and self.osc.trig_pulse_class == "runt":
             trig_lvl = [self._trig_lvl, self._trig_upper_threshold]
         else:
             trig_lvl = [self._trig_lvl]
@@ -1521,7 +1588,7 @@ class Channel:
                 The lower and upper trigger level if the trigger mode is set to "Transition mode" or
                 the trigger level if the trigger mode is set to "Edge triggering" or "Pulse Width triggering"
         """
-        if self.osc.trig_type == 'pulse' and self.osc.trig_pulse_class == 'runt':
+        if self.osc.trig_type == "pulse" and self.osc.trig_pulse_class == "runt":
             self._trig_lvl = min(trig_lvl)
             self._trig_upper_threshold = max(trig_lvl)
         else:
@@ -1531,7 +1598,7 @@ class Channel:
     def attenuation(self):
         """Probe attenuation."""
         if self.osc.product_id in tektronix_200_series:
-            return self.query_float(f'CH{self.channel_index}:PRObe?')
+            return self.query_float(f"CH{self.channel_index}:PRObe?")
         return 1 / self._probe_gain
 
     @attenuation.setter
@@ -1542,7 +1609,7 @@ class Channel:
             att: Attenuation to set.
         """
         if self.osc.product_id in tektronix_200_series:
-            self.write(f'CH{self.channel_index}:PRObe {att}')
+            self.write(f"CH{self.channel_index}:PRObe {att}")
         else:
             self._probe_gain = 1 / att
 
@@ -1551,7 +1618,7 @@ class Channel:
         """Get the measurement unit of the probe."""
         if self.osc.product_id in tektronix_200_series:
             raise NotImplementedError("Setting not available for this device")
-        return self.query(f'CH{self.channel_index}:PRObe:UNIts?')
+        return self.query(f"CH{self.channel_index}:PRObe:UNIts?")
 
     @property
     def coupling(self):
@@ -1561,7 +1628,7 @@ class Channel:
         Returns:
             str: The coupling for the selected channel ('AC' or 'DC').
         """
-        coupling = self.query(f'CH{self.channel_index}:COUPling?')
+        coupling = self.query(f"CH{self.channel_index}:COUPling?")
         return self.couplings.inverse[coupling]
 
     @coupling.setter
@@ -1574,7 +1641,7 @@ class Channel:
         Args:
             coupling (str): The coupling for the selected channel ('AC' or 'DC').
         """
-        self.write(f'CH{self.channel_index}:COUPling {self.couplings[coupling]}')
+        self.write(f"CH{self.channel_index}:COUPling {self.couplings[coupling]}")
 
     @property
     def offset(self):
@@ -1597,7 +1664,7 @@ class Channel:
         """
         if self.osc.product_id in tektronix_200_series:
             raise NotImplementedError("Setting not available for this device")
-        return self.query(f'CH{self.channel_index}:OFFSet?')
+        return self.query(f"CH{self.channel_index}:OFFSet?")
 
     @offset.setter
     def offset(self, offset):
@@ -1620,4 +1687,4 @@ class Channel:
         """
         if self.osc.product_id in tektronix_200_series:
             raise NotImplementedError("Setting not available for this device")
-        self.write(f'CH{self.channel_index}:OFFSet {offset}')
+        self.write(f"CH{self.channel_index}:OFFSet {offset}")
