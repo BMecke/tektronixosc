@@ -9,6 +9,7 @@ Features
 ========
 
 * Basic support for model TBS1072C
+* Basic support for model TBS2012B
 
 
 Installation
@@ -20,6 +21,8 @@ To install the Tektronix Oscilloscope Interface, run this command in your termin
 
 Note that usage in Windows will require the `NI-VISA driver`_.
 
+
+For the TDS2012B the USB rear port has to be configured as "Computer".
 
 
 Usage
