@@ -820,7 +820,7 @@ class Oscilloscope:
         Returns:
             float: The main scale per division.
         """
-        return float(self.query("HORizontal:MAIn:SCAle?"))
+        return self.query_float("HORizontal:MAIn:SCAle?")
 
     @horizontal_scale.setter
     def horizontal_scale(self, scale):
@@ -830,7 +830,7 @@ class Oscilloscope:
         Args:
             scale (float): The main scale per division.
         """
-        self.write("HORizontal:MAIn:SCAle {}".format(scale))
+        self.write(f"HORizontal:MAIn:SCAle {scale}")
 
     @property
     def acquisition_mode(self):
@@ -1110,7 +1110,7 @@ class Oscilloscope:
         if self.trig_type == "edge":
             self.write(f"{self.trig_str}:EDGE:SOUrce {trigger_source}")
         elif self.trig_pulse_class == "runt":
-            self.write("TRIGger:A:RUNT:SOUrce {}".format(trigger_source))
+            self.write(f"TRIGger:A:RUNT:SOUrce {trigger_source}")
         else:
             self.write("TRIGger:A:PULse:SOUrce {}".format(trigger_source))
 
@@ -1214,7 +1214,7 @@ class Oscilloscope:
         Args:
             pre_sample_time (float): The horizontal delay time.
         """
-        self.write("HORizontal:DELay:TIME {}".format(str(pre_sample_time)))
+        self.write(f"HORizontal:DELay:TIME {pre_sample_time}")
 
     @property
     def pre_sample_ratio(self):
@@ -1411,7 +1411,7 @@ class Oscilloscope:
         """
         if self.product_id in tektronix_200_series:
             raise NotImplementedError("Setting not available for this device")
-        self.write(":FFT:SOURce1 CHANnel {}".format(source))
+        self.write(f":FFT:SOURce1 CHANnel {source}")
 
 
 class Channel:
