@@ -786,8 +786,13 @@ class Oscilloscope:
         Returns:
             float: The sample rate.
         """
-        # There are 16 divisions displayed on the screen
-        return self.record_length / (self.horizontal_scale * 16)
+        # The amount of divisions on screen depend on the device
+        if self.product_id in tektronix_200_series:
+            divisions = 10
+        else:
+            divisions = 16
+
+        return self.record_length / (self.horizontal_scale * divisions)
 
     @sample_rate.setter
     def sample_rate(self, sample_rate):
@@ -799,8 +804,13 @@ class Oscilloscope:
         Args:
             sample_rate (float): The sample rate.
         """
-        # There are 16 divisions displayed on the screen
-        self.horizontal_scale = self.record_length / (sample_rate * 16)
+        # The amount of divisions on screen depend on the device
+        if self.product_id in tektronix_200_series:
+            divisions = 10
+        else:
+            divisions = 16
+
+        self.horizontal_scale = self.record_length / (sample_rate * divisions)
 
     @property
     def horizontal_scale(self):
