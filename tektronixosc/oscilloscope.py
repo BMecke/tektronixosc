@@ -950,7 +950,7 @@ class Oscilloscope:
         Returns:
             str: The current data source ('CH1', 'CH2', 'MATH', 'REF1', 'REF2').
 
-                CH1– CH2 specifies which analog channel data will be transferred from the instrument to the controller,
+                CH1–CH2 specifies which analog channel data will be transferred from the instrument to the controller,
                 channels 1 through 2.
 
                 MATH specifies that the math waveform data will be transferred from the instrument to the controller.
@@ -974,7 +974,7 @@ class Oscilloscope:
 
                 MATH specifies that the math waveform data will be transferred from the instrument to the controller.
 
-                REF1–REF2 specifies which reference waveform data will be transferred from the instrument to the
+                REF1–REF2/REFA-REFB specifies which reference waveform data will be transferred from the instrument to the
                 controller, waveforms, 1 or 2.
         """
         self.write(f"DAta:SOUrce {self.data_sources[source]}")
