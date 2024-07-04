@@ -955,9 +955,11 @@ class Oscilloscope:
 
                 MATH specifies that the math waveform data will be transferred from the instrument to the controller.
 
-                REF1–REF2 specifies which reference waveform data will be transferred from the instrument to the
+                REF1–REF2/REFA-REFB specifies which reference waveform data will be transferred from the instrument to the
                 controller, waveforms, 1 or 2.
         """
+        if self.product_id in tektronix_200_series:
+            return self.data_sources.inverse[self.query("DATa:SOUrce?")]
         return self.query("DATa:SOUrce?").split(" ")[1]
 
     @data_source.setter
@@ -998,7 +1000,9 @@ class Oscilloscope:
         Returns:
            int: The query form of this command returns the current horizontal record length.
         """
-        return int(self.query("HORizontal:RESOlution?"))
+        if self.product_id in tektronix_200_series:
+            return self.query_int("HORizontal:RECOrdlength?")
+        return self.query_int("HORizontal:RESOlution?")
 
     @record_length.setter
     def record_length(self, record_length):
@@ -1009,8 +1013,10 @@ class Oscilloscope:
         Args:
            record_length (int): The query form of this command returns the current horizontal record length.
         """
+        if self.product_id in tektronix_200_series:
+            raise NotImplementedError("Setting not available for this device")
         self._data_stop = record_length
-        self.write("HORizontal:RESOlution {}".format(record_length))
+        self.write(f"HORizontal:RESOlution {record_length}")
 
     @property
     def x_increment(self):
@@ -1112,7 +1118,33 @@ class Oscilloscope:
         elif self.trig_pulse_class == "runt":
             self.write(f"TRIGger:A:RUNT:SOUrce {trigger_source}")
         else:
-            self.write("TRIGger:A:PULse:SOUrce {}".format(trigger_source))
+            self.write(f"TRIGger:A:PULse:SOUrce {trigger_source}")
+
+    @property
+    def trig_lvl(self):
+        """Gets the oscilloscope main trigger level. This command is exclusive
+        for the tds200 series.
+
+        Args:
+            trigger_level: Trigger level value in volts.
+        """
+        if self.product_id in tektronix_200_series:
+            return self.query_float("TRIGger:MAIn:LEVel?")
+        else:
+            NotImplementedError("Setting not available for this device")
+
+    @trig_lvl.setter
+    def trig_lvl(self, trigger_lvl):
+        """Sets the oscilloscope main trigger level. This command is exclusive
+        for the tds200 series.
+
+        Args:
+            trigger_level: Trigger level value in volts.
+        """
+        if self.product_id in tektronix_200_series:
+            self.write(f"TRIGger:MAIn:LEVel {trigger_lvl}")
+        else:
+            NotImplementedError("Setting not available for this device")
 
     @property
     def trig_type(self):
@@ -1200,6 +1232,8 @@ class Oscilloscope:
         Returns:
             float: The horizontal delay time.
         """
+        if self.product_id in tektronix_200_series:
+            raise NotImplementedError("Setting not available for this device")
         return float(self.query("HORizontal:DELay:TIMe?"))
 
     @pre_sample_time.setter
@@ -1214,6 +1248,8 @@ class Oscilloscope:
         Args:
             pre_sample_time (float): The horizontal delay time.
         """
+        if self.product_id in tektronix_200_series:
+            raise NotImplementedError("Setting not available for this device")
         self.write(f"HORizontal:DELay:TIME {pre_sample_time}")
 
     @property
