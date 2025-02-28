@@ -8,6 +8,21 @@ This project follows the guidelines of `Keep a changelog`_ and adheres to
 .. _Keep a changelog: http://keepachangelog.com/
 .. _Semantic versioning: https://semver.org/
 
+`0.2.0`_ - 2025-02-28
+=====================
+
+Added
+-----
+* Added support for the Tektronix TDS2012B oscilloscope.
+
+Changed
+-------
+* Many functions have been reworked to differentiate between the devices.
+* Capitalized strings are now written in lower case to be consistent with the other oscilloscope libraries.
+* The Bidict class has been added in order to define the command strings for both devices.
+
+.. _0.2.0: https://github.com/bmecke/tektronixosc/releases/tag/0.2.0
+
 `0.1.1`_ - 2023-10-07
 =====================
 
